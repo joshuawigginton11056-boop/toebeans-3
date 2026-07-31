@@ -13,11 +13,12 @@ namespace Toebeans.SnowTrees
     ///   splay out of the ground.
     /// * <b>Needles</b> - each bough is a thin twig carrying a feathered spray
     ///   of small needle blades, plus tufts that push up through the snow.
-    /// * <b>Snow</b> - dollops. Each bough carries a rounded lump with a lip
-    ///   hanging off its outer edge and a smaller clump further out, all pushed
-    ///   into one <see cref="SnowField"/>, smooth-unioned and meshed in a single
-    ///   pass. Lumps that touch fuse with a soft fillet instead of intersecting
-    ///   as separate shells, which is the difference between snow and gravel.
+    /// * <b>Snow</b> - a flattened shelf lying along each bough with a rim
+    ///   curling off its outer end, pushed into one <see cref="SnowField"/>,
+    ///   smooth-unioned and meshed in a single pass. Shelves that touch fuse
+    ///   with a soft fillet instead of intersecting as separate shells, but
+    ///   their height is capped against tier spacing so the dark gaps between
+    ///   tiers survive - those gaps are what make the tiers readable.
     ///
     /// Everything is driven by a deterministic LCG, so the same settings always
     /// produce the same mesh - no baked binary asset needed to keep the trees
@@ -212,23 +213,26 @@ namespace Toebeans.SnowTrees
             int sections = path.Count - 1;
             for (int i = 0; i < rows; i++)
             {
-                float t = 0.06f + 0.94f * (i / Mathf.Max(1f, rows - 1f));
+                float t = 0.05f + 0.95f * (i / Mathf.Max(1f, rows - 1f));
                 int fi = Mathf.Min(sections - 1, Mathf.FloorToInt(t * sections));
                 float ft = t * sections - fi;
                 Vector3 p = Vector3.Lerp(path[fi], path[fi + 1], ft);
                 Vector3 axis = SafeNormal(path[fi + 1] - path[fi], Vector3.forward);
                 Vector3 side = SafeNormal(Vector3.Cross(Vector3.up, axis), Vector3.right);
                 Vector3 upv = Vector3.Cross(axis, side);
-                float taper = 1f - 0.55f * t;
+                // Widest at the outer end, so green fringes past the snow rim.
+                float taper = 0.55f + 0.75f * t;
 
                 for (int k = 0; k < perRow; k++)
                 {
                     float spread = (k + 0.5f) / perRow * 2f - 1f;
-                    Vector3 d = axis * (0.45f + rng.Range(0f, 0.25f)) +
-                                side * (spread * rng.Range(0.8f, 1.15f));
-                    d += upv * rng.Range(-droop, droop * 0.35f);
-                    AddNeedle(mesh, p, d, Vector3.Cross(d, upv),
-                              needleLength * taper * rng.Range(0.75f, 1.2f),
+                    Vector3 d = axis * rng.Range(0.25f, 0.5f) +
+                                side * (spread * rng.Range(1f, 1.35f));
+                    // Kept near-horizontal: the frond has to read as a flat pad,
+                    // not a bottle brush, or the green looks like fern blades.
+                    d += upv * rng.Range(-droop * 0.25f, droop * 0.1f);
+                    AddNeedle(mesh, p, d, upv,
+                              needleLength * taper * rng.Range(0.8f, 1.25f),
                               needleWidth * taper);
                 }
             }
@@ -321,7 +325,7 @@ namespace Toebeans.SnowTrees
             {
                 float a = Mathf.PI * 2f * (i + rng.Range(-0.2f, 0.2f)) / settings.rootCount;
                 Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                float length = radius * rng.Range(0.3f, 0.55f);
+                float length = radius * rng.Range(0.4f, 0.68f);
                 const int rootSections = 6;
                 var rootPath = new Vector3[rootSections];
                 var rootRadii = new float[rootSections];
@@ -334,7 +338,7 @@ namespace Toebeans.SnowTrees
                         trunkBaseRadius * 0.8f - length * 0.5f * t * t +
                         rng.Range(-0.012f, 0.012f) * radius,
                         dir.z * reach);
-                    rootRadii[k] = trunkBaseRadius * (0.5f - 0.44f * t) + 0.003f * radius;
+                    rootRadii[k] = trunkBaseRadius * (0.45f - 0.4f * t) + 0.0025f * radius;
                 }
 
                 AddTube(m, SubmeshBark, rootPath, rootRadii, 5);
@@ -356,11 +360,8 @@ namespace Toebeans.SnowTrees
                 float tt = settings.tiers > 1 ? (float)ti / (settings.tiers - 1) : 0f;
                 float t = settings.lowestTier + (tierHigh - settings.lowestTier) * tt;
                 Vector3 origin = TrunkAt(trunkPath, t);
-                float span = radius * Profile(t, settings.shape) * rng.Range(0.92f, 1.06f);
+                float span = radius * Profile(t, settings.shape) * rng.Range(0.82f, 1.18f);
 
-                // Snow floor tied to tier spacing, so tall trees still merge
-                // vertically instead of stacking separate plates.
-                float taperFloor = gap * (0.3f + 0.7f * Mathf.Min(1f, span / radius));
                 int count = Mathf.Max(3, Mathf.RoundToInt(settings.boughsPerTier * (0.62f + 0.38f * (1f - tt))));
                 float phase = rng.Value() * Mathf.PI * 2f;
 
@@ -380,35 +381,34 @@ namespace Toebeans.SnowTrees
 
                     AddTube(m, SubmeshFoliage, bough, twig, 4, capStart: false);
                     AddNeedleSpray(m, bough, ref rng,
-                                   needleLength: length * rng.Range(0.16f, 0.26f),
+                                   needleLength: length * rng.Range(0.1f, 0.15f),
                                    needleWidth: length * 0.055f,
-                                   rows: 10, perRow: 6, droop: 0.8f);
+                                   rows: 12, perRow: 7, droop: 0.8f);
 
                     if (rng.Value() < settings.snowCoverage)
                     {
-                        // A dollop sitting on the bough, drooping over its edge.
+                        // A shelf of snow lying along the bough: wide, flat, and
+                        // never tall enough to close the gap to the tier above -
+                        // those dark gaps are what make the tiers readable.
                         Vector3 outward = SafeNormal(new Vector3(dir.x, 0f, dir.z), Vector3.forward);
-                        Vector3 seat = Vector3.Lerp(bough[0], bough[2], rng.Range(0.45f, 0.62f));
-                        float rMain = settings.snowScale *
-                                      Mathf.Max(length * 0.3f, taperFloor * 0.6f) *
-                                      rng.Range(0.85f, 1.15f);
-                        Vector3 centre = seat + Vector3.up * (rMain * 0.42f);
-                        field.AddSphere(centre, rMain,
-                                        new Vector3(1f, rng.Range(0.72f, 0.95f), 1f), blend);
+                        Vector3 inner = Vector3.Lerp(bough[0], bough[1], 0.5f);
+                        Vector3 outer = bough[3];
+                        float thick = Mathf.Min(length * 0.5f, gap * 0.5f) * settings.snowScale *
+                                      (0.55f + 0.45f * (1f - tt)) * rng.Range(0.85f, 1.15f);
+                        // Not wider than the bough it sits on, or the upper tiers
+                        // wrap the trunk into one smooth tube.
+                        float r0 = Mathf.Min(thick * rng.Range(1.7f, 2.1f), length * 0.42f);
+                        float r1 = Mathf.Min(thick * rng.Range(1.05f, 1.35f), length * 0.3f);
+                        float squash = thick / Mathf.Max(1e-4f, r0);
+                        field.AddCapsule(inner + Vector3.up * (thick * 0.55f),
+                                         outer + Vector3.up * (thick * 0.45f),
+                                         r0, r1, squash, blend);
 
-                        // The lip that hangs off the outer edge.
-                        Vector3 lip = centre + outward * (rMain * 0.62f) -
-                                      Vector3.up * (rMain * rng.Range(0.5f, 0.75f));
-                        field.AddSphere(lip, rMain * rng.Range(0.5f, 0.72f),
-                                        new Vector3(1f, rng.Range(0.8f, 1.1f), 1f), blend);
-
-                        // A smaller clump further out along the bough.
-                        if (rng.Value() < 0.7f)
-                        {
-                            Vector3 outer = bough[3] + Vector3.up * (rMain * 0.25f);
-                            field.AddSphere(outer, rMain * rng.Range(0.36f, 0.55f),
-                                            new Vector3(1f, rng.Range(0.75f, 1f), 1f), blend);
-                        }
+                        // The rim curling down off the outer end.
+                        Vector3 lip = outer + outward * (r1 * 0.35f) -
+                                      Vector3.up * (thick * rng.Range(0.25f, 0.6f));
+                        field.AddSphere(lip, r1 * rng.Range(0.55f, 0.8f),
+                                        new Vector3(1f, rng.Range(0.75f, 1f), 1f), blend);
                     }
                 }
 
@@ -434,10 +434,10 @@ namespace Toebeans.SnowTrees
                 }
 
                 // Cushion packed around the trunk at the tier.
-                field.AddSphere(origin + Vector3.up * (span * 0.16f),
-                                settings.snowScale * Mathf.Max(span * rng.Range(0.26f, 0.34f),
-                                                               taperFloor * 0.45f),
-                                new Vector3(1f, rng.Range(0.6f, 0.8f), 1f), blend);
+                float cushion = Mathf.Min(span * rng.Range(0.32f, 0.42f), gap * 0.4f) *
+                                settings.snowScale;
+                field.AddSphere(origin + Vector3.up * (cushion * 0.35f), cushion,
+                                new Vector3(1f, rng.Range(0.42f, 0.6f), 1f), blend);
             }
 
             // Crown ------------------------------------------------------
@@ -479,7 +479,8 @@ namespace Toebeans.SnowTrees
                 float ct = 0.04f + 0.78f * i / (crownSteps - 1f);
                 Vector3 p = Vector3.Lerp(spireBase, spireTip, ct);
                 float r = settings.snowScale *
-                          Mathf.Max(crownRadius * (0.7f - 0.55f * ct), gap * 0.34f * (1f - ct)) *
+                          Mathf.Min(crownRadius * (0.62f - 0.5f * ct),
+                                    gap * 0.3f * (1f - ct * 0.8f)) *
                           rng.Range(0.85f, 1.15f);
                 float wobble = crownRadius * 0.3f;
                 Vector3 c = p + new Vector3(rng.Range(-wobble, wobble), r * 0.3f,

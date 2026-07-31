@@ -6,9 +6,9 @@ tree is a diff you can read.
 
 | Prefab | Silhouette | Size | Triangles |
 | --- | --- | --- | --- |
-| `SnowSpruce_A` | full spruce, broad skirt | 6.6 m tall, 3.6 m wide | ~26k |
-| `SnowSpruce_B` | narrow steeple | 8.3 m tall, 2.8 m wide | ~29k |
-| `SnowSpruce_C` | slim spire | 9.3 m tall, 2.4 m wide | ~38k |
+| `SnowSpruce_A` | full spruce, broad skirt | 6.8 m tall, 3.8 m wide | ~35k |
+| `SnowSpruce_B` | narrow steeple | 8.4 m tall, 3.2 m wide | ~42k |
+| `SnowSpruce_C` | slim spire | 9.4 m tall, 2.5 m wide | ~55k |
 
 Each tree is one mesh with three submeshes — `0` bark, `1` foliage, `2` snow —
 matched by the three materials in `Materials/`. Trunks stand at the local
@@ -33,27 +33,25 @@ origin and grow up +Y, so a prefab drops straight onto terrain.
 **Wood** — swept tubes: a tapered trunk, and roots splaying out of the ground
 at the base.
 
-**Needles** — each bough is a thin twig carrying a feathered spray of small
-needle blades, every blade emitted twice with opposing windings and normals so
-it lights correctly from both sides under backface culling. Extra tufts push up
-through the snow at each tier, which is what keeps green visible against all
-that white.
+**Needles** — each bough is a thin twig carrying a flat frond: a near-horizontal
+pad of small needle blades, widest at the outer end so green fringes past the
+snow rim. Every blade is emitted twice with opposing windings and normals so it
+lights correctly from both sides under backface culling. Extra tufts push up
+through the snow at each tier.
 
-**Snow** — dollops. Each bough carries a rounded lump, a lip hanging off its
-outer edge, and usually a smaller clump further out. None of them are separate
-objects: they are squashed spheres pushed into a single signed distance field
-(`SnowField`), smooth-unioned with a polynomial `smin`, then meshed in one pass
-with naive surface nets. Lumps that touch fuse with a soft fillet rather than
-intersecting as two shells — the difference between snow and a pile of gravel —
-while lumps that don't touch stay readable as individual dollops. Vertex
-normals come from the field gradient, so the surface shades smoothly no matter
-how coarse the voxels are.
+**Snow** — a flattened shelf lying along each bough, with a rim curling down off
+its outer end. Neither is a separate object: both are pushed into a single
+signed distance field (`SnowField`), smooth-unioned with a polynomial `smin`,
+then meshed in one pass with naive surface nets, so shelves that touch fuse
+with a soft fillet rather than intersecting as two shells. Shelf height is
+capped against tier spacing and shelf width against the bough it sits on —
+without those caps the tiers merge into one smooth column and the tree stops
+reading as layered at all. Vertex normals come from the field gradient, so the
+surface shades smoothly no matter how coarse the voxels are.
 
 Tiers of boughs are placed up the trunk, their reach set by a per-species
-`Profile` curve (the silhouette). Dollop size is the larger of "a fraction of
-the bough" and "a fraction of the tier spacing, scaled by how wide that tier
-is", so the tall narrow trees read as a cascade of lumps down a spire rather
-than either stacked plates or one fused column. Above the top tier, shrinking
+`Profile` curve (the silhouette), with ±18% jitter per tier so the profile
+stays irregular. Snow thins toward the crown, and above the top tier shrinking
 lumps catch on a needle spire up to the point.
 
 Randomness comes from a small deterministic LCG seeded per tree, so the same

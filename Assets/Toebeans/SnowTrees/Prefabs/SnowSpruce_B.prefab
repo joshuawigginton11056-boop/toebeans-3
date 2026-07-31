@@ -107,7 +107,7 @@ MonoBehaviour:
     seed: 90210
     height: 7.6
     radius: 1.45
-    tiers: 16
+    tiers: 13
     shape: 1
     boughsPerTier: 7
     rootCount: 5

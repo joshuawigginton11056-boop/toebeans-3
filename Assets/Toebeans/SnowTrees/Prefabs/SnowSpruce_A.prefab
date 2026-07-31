@@ -107,7 +107,7 @@ MonoBehaviour:
     seed: 1337
     height: 6
     radius: 1.7
-    tiers: 12
+    tiers: 10
     shape: 0
     boughsPerTier: 8
     rootCount: 6
