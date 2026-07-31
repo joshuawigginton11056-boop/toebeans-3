@@ -369,7 +369,9 @@ namespace Toebeans.SnowTrees
                 {
                     float a = phase + Mathf.PI * 2f * (bi + rng.Range(-0.25f, 0.25f)) / count;
                     Vector3 dir = new Vector3(Mathf.Cos(a), rng.Range(0.18f, 0.36f), Mathf.Sin(a));
-                    float length = span * rng.Range(1f, 1.3f);
+                    // Fuller, droopier skirt on the lowest tiers.
+                    float length = span * rng.Range(1f, 1.3f) *
+                                   (1f + 0.22f * Mathf.Max(0f, 1f - tt * 4f));
                     float droop = rng.Range(0.55f, 0.8f);
                     Vector3[] bough = BoughPath(origin, dir, length, droop, 5);
 
@@ -393,7 +395,7 @@ namespace Toebeans.SnowTrees
                         Vector3 outward = SafeNormal(new Vector3(dir.x, 0f, dir.z), Vector3.forward);
                         Vector3 inner = Vector3.Lerp(bough[0], bough[1], 0.5f);
                         Vector3 outer = bough[3];
-                        float thick = Mathf.Min(length * 0.5f, gap * 0.5f) * settings.snowScale *
+                        float thick = Mathf.Min(length * 0.55f, gap * 0.66f) * settings.snowScale *
                                       (0.55f + 0.45f * (1f - tt)) * rng.Range(0.85f, 1.15f);
                         // Not wider than the bough it sits on, or the upper tiers
                         // wrap the trunk into one smooth tube.
@@ -413,7 +415,7 @@ namespace Toebeans.SnowTrees
                 }
 
                 // Needle tufts pushing up through the snow surface.
-                int tufts = Mathf.Max(2, count / 3);
+                int tufts = Mathf.Max(1, count / 5);
                 for (int si = 0; si < tufts; si++)
                 {
                     float a = phase + Mathf.PI / count +
@@ -424,17 +426,17 @@ namespace Toebeans.SnowTrees
                                                      span * rng.Range(0.16f, 0.3f),
                                                      dir.z * offset);
                     Vector3 side = SafeNormal(Vector3.Cross(dir, Vector3.up), Vector3.right);
-                    for (int k = 0; k < 7; k++)
+                    for (int k = 0; k < 4; k++)
                     {
                         Vector3 nd = dir * rng.Range(0.2f, 0.9f) + Vector3.up * rng.Range(0.35f, 1f);
                         nd += side * rng.Range(-0.45f, 0.45f);
                         AddNeedle(m, p, nd, Vector3.Cross(nd, Vector3.up),
-                                  span * rng.Range(0.16f, 0.28f), span * 0.045f);
+                                  span * rng.Range(0.1f, 0.18f), span * 0.04f);
                     }
                 }
 
                 // Cushion packed around the trunk at the tier.
-                float cushion = Mathf.Min(span * rng.Range(0.32f, 0.42f), gap * 0.4f) *
+                float cushion = Mathf.Min(span * rng.Range(0.34f, 0.46f), gap * 0.55f) *
                                 settings.snowScale;
                 field.AddSphere(origin + Vector3.up * (cushion * 0.35f), cushion,
                                 new Vector3(1f, rng.Range(0.42f, 0.6f), 1f), blend);

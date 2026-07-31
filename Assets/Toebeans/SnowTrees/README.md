@@ -6,9 +6,9 @@ tree is a diff you can read.
 
 | Prefab | Silhouette | Size | Triangles |
 | --- | --- | --- | --- |
-| `SnowSpruce_A` | full spruce, broad skirt | 6.8 m tall, 3.8 m wide | ~35k |
-| `SnowSpruce_B` | narrow steeple | 8.4 m tall, 3.2 m wide | ~42k |
-| `SnowSpruce_C` | slim spire | 9.4 m tall, 2.5 m wide | ~55k |
+| `SnowSpruce_A` | full spruce, broad skirt | 6.8 m tall, 4.0 m wide | ~34k |
+| `SnowSpruce_B` | narrow steeple | 8.4 m tall, 3.3 m wide | ~41k |
+| `SnowSpruce_C` | slim spire | 9.4 m tall, 2.6 m wide | ~51k |
 
 Each tree is one mesh with three submeshes — `0` bark, `1` foliage, `2` snow —
 matched by the three materials in `Materials/`. Trunks stand at the local
