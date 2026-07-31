@@ -13,6 +13,31 @@ namespace FrozenLake
     }
 
     /// <summary>
+    /// Where the hole ended up, in the mesh's local space. Gameplay needs this to know where the
+    /// player can be dropped through, so it comes back with the mesh rather than being re-derived.
+    /// </summary>
+    public struct HoleInfo
+    {
+        /// <summary>False when the lake is intact.</summary>
+        public bool Exists;
+
+        /// <summary>Centre of the opening, at the ice surface.</summary>
+        public Vector3 Center;
+
+        /// <summary>Average radius of the ragged opening.</summary>
+        public float Radius;
+
+        /// <summary>
+        /// Radius of the guaranteed-clear column down the middle. No debris, no overhanging slab
+        /// and no shaft wall intrudes here, so anything falling inside it reaches the bottom.
+        /// </summary>
+        public float ClearRadius;
+
+        /// <summary>Depth of the shaft, or 0 when the hole does not open through.</summary>
+        public float ShaftDepth;
+    }
+
+    /// <summary>
     /// Accumulates flat-shaded triangles. Every triangle gets its own three vertices so each face
     /// keeps a hard normal, which is the whole point of the low-poly look. UVs are projected on the
     /// dominant axis of the face normal and vertex colours carry a per-face shade for anyone who
@@ -25,6 +50,9 @@ namespace FrozenLake
         public readonly List<Vector2> UVs = new List<Vector2>();
         public readonly List<Color> Colors = new List<Color>();
         public readonly List<int>[] Submeshes;
+
+        /// <summary>Where the hole ended up. <c>Exists</c> is false on an intact lake.</summary>
+        public HoleInfo Hole;
 
         readonly float _uvScale;
 

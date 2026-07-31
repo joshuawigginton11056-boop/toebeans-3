@@ -29,8 +29,35 @@ namespace FrozenLake
         [SerializeField] bool liveUpdate = true;
 
         Mesh _mesh;
+        HoleInfo _hole;
 
         public FrozenLakeSettings Settings { get { return settings; } }
+
+        /// <summary>
+        /// Where the hole ended up, in local space. <c>Exists</c> is false on an intact lake.
+        /// Use <see cref="TryGetDropPoint"/> for the world-space version.
+        /// </summary>
+        public HoleInfo Hole { get { return _hole; } }
+
+        /// <summary>
+        /// World-space centre and radius of the clear column through the hole. Anything spawned
+        /// inside this cylinder falls through cleanly, which is what a dive trigger wants.
+        /// Returns false when the lake has no hole.
+        /// </summary>
+        public bool TryGetDropPoint(out Vector3 center, out float radius)
+        {
+            if (!_hole.Exists)
+            {
+                center = transform.position;
+                radius = 0f;
+                return false;
+            }
+
+            center = transform.TransformPoint(_hole.Center);
+            Vector3 scale = transform.lossyScale;
+            radius = _hole.ClearRadius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+            return true;
+        }
 
         /// <summary>The mesh currently on the filter, or null if nothing has been generated yet.</summary>
         public Mesh Mesh { get { return _mesh; } }
@@ -87,7 +114,7 @@ namespace FrozenLake
             // Refill the mesh we already own rather than leaking a new one on every keystroke.
             Mesh target = ownsCurrent ? _mesh : new Mesh();
             target.name = "FrozenLake_" + settings.seed;
-            Fill(target, settings);
+            _hole = Fill(target, settings);
 
             _mesh = target;
             filter.sharedMesh = target;
@@ -115,7 +142,7 @@ namespace FrozenLake
             return mesh;
         }
 
-        static void Fill(Mesh mesh, FrozenLakeSettings settings)
+        static HoleInfo Fill(Mesh mesh, FrozenLakeSettings settings)
         {
             MeshBuffer buf = FrozenLakeMeshBuilder.Build(settings);
 
@@ -137,6 +164,23 @@ namespace FrozenLake
 
             mesh.RecalculateBounds();
             mesh.RecalculateTangents();
+            return buf.Hole;
+        }
+
+        void OnDrawGizmosSelected()
+        {
+            if (!_hole.Exists) return;
+
+            Vector3 center;
+            float radius;
+            if (!TryGetDropPoint(out center, out radius)) return;
+
+            // The column anything dropped here will fall down cleanly.
+            Gizmos.color = new Color(0.3f, 0.9f, 1f, 0.9f);
+            Gizmos.DrawWireSphere(center, radius);
+            float depth = _hole.ShaftDepth * Mathf.Abs(transform.lossyScale.y);
+            Gizmos.DrawLine(center, center + Vector3.down * depth);
+            Gizmos.DrawWireSphere(center + Vector3.down * depth, radius);
         }
     }
 }

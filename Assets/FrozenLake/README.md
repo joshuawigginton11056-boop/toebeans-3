@@ -4,11 +4,19 @@ A flat-shaded frozen lake built for stylised/low-poly scenes: a cracked ice shee
 berm, with heaved ice shards, snow drifts and boulders on top, sitting on a solid tapered block so
 it reads as a chunk of terrain rather than a flat plane.
 
-Roughly **2,100 triangles** at the default settings, and about **29 x 32 m** across.
+Roughly **2,100 triangles** at the default settings, and about **29 x 32 m** across. It can also be
+generated with a smashed hole through the middle that a character can fall through.
+
+Two prefabs ship with it:
+
+| Prefab | Use |
+|---|---|
+| `FrozenLake.prefab` | intact ice, nothing to fall through |
+| `FrozenLake_Holed.prefab` | same lake with a smashed hole and an open shaft |
 
 ## Using it
 
-Drag `FrozenLake.prefab` into a scene, or use **GameObject → 3D Object → Frozen Lake (Low Poly)**.
+Drag either prefab into a scene, or use **GameObject → 3D Object → Frozen Lake (Low Poly)**.
 
 The mesh is generated procedurally from a seed rather than shipped as a binary model, so:
 
@@ -38,6 +46,39 @@ render the whole thing in a single draw call if you would rather not use four ma
 UVs are planar, projected on whichever axis each face points along most strongly, at
 `uvScale` world units per tile.
 
+## The hole
+
+Tick **hole** and the ice sheet loses every facet whose centre falls inside a ragged outline, which
+leaves a torn edge along the existing triangles rather than a cut circle. The exposed edge gets a
+broken face hanging off it so the sheet shows its thickness, and slabs are thrown clear onto the
+surrounding ice.
+
+With **holeOpensThrough** on (the default) the floor of the block is cut to match and a shaft is
+built down to it, so the hole is something a character can fall through rather than just look into.
+
+### Dropping something through it
+
+Anything inside the clear column falls straight through — no debris, overhanging slab or shaft wall
+is allowed to intrude on it:
+
+```csharp
+Vector3 center;
+float radius;
+if (lake.TryGetDropPoint(out center, out radius))
+{
+    // center is the mouth of the hole in world space; radius is the safe column around it.
+    player.position = center + Vector3.up * 2f;
+}
+```
+
+Select the object in the scene and the column is drawn as a gizmo, so you can see where to put a
+trigger volume without guessing. `lake.Hole` gives the same numbers in local space, plus the shaft
+depth.
+
+Note this is authored geometry, not runtime destruction. To show ice breaking during play, put both
+prefabs in the scene and swap which one is active behind a burst of particles — far cheaper than
+cutting a mesh live, and it behaves identically every time.
+
 ## Settings worth knowing
 
 | Setting                | Effect                                                                 |
@@ -49,6 +90,10 @@ UVs are planar, projected on whichever axis each face points along most strongly
 | `plateHeightVariation` | Step between neighbouring plates. This is what reads as cracks.         |
 | `bankWidth` / `bankHeight` | The snow berm. Set both to 0 for bare ice with no shore.            |
 | `depth`                | Thickness of the solid block underneath. 0 leaves just the surface.     |
+| `hole`                 | Smash a hole through the ice. See above.                                |
+| `holeRadius`           | Size of the opening. Capped at 62% of the lake radius.                  |
+| `holeOffsetX/Z`        | Move it off centre, as a fraction of the lake radius. Auto-clamped so the rim stays on ice. |
+| `iceThickness`         | How thick the sheet looks where it broke.                               |
 
 Turning `shardCount`, `snowPatchCount` and `rockCount` down to 0 leaves a clean ice sheet, which is
 a good starting point if you want to scatter your own props instead.
@@ -66,7 +111,8 @@ a good starting point if you want to scatter your own props instead.
 ## Files
 
 ```
-FrozenLake.prefab              ready-to-drop prefab, materials wired up
+FrozenLake.prefab              intact lake, materials wired up
+FrozenLake_Holed.prefab        same lake with the hole punched through
 Scripts/FrozenLakeGenerator.cs the MonoBehaviour: builds the mesh, owns its lifetime
 Scripts/FrozenLakeSettings.cs  every tunable, in one serializable class
 Scripts/FrozenLakeMeshBuilder.cs  the geometry itself: maths in, triangles out

@@ -60,6 +60,33 @@ namespace FrozenLake
         [Tooltip("How far the solid block extends below the ice, so the asset is not a paper sheet.")]
         [Range(0f, 10f)] public float depth = 1.4f;
 
+        [Header("Hole")]
+        [Tooltip("Smash a hole through the ice. Turn this off for the intact lake, on for the version " +
+                 "the player falls through.")]
+        public bool hole = false;
+
+        [Tooltip("Radius of the hole, in metres.")]
+        [Range(0.5f, 20f)] public float holeRadius = 3.5f;
+
+        [Tooltip("Where the hole sits, as a fraction of the lake radius from the centre. " +
+                 "Kept well inside the shore so the rim never runs into the snow berm.")]
+        [Range(-0.5f, 0.5f)] public float holeOffsetX = 0f;
+
+        [Range(-0.5f, 0.5f)] public float holeOffsetZ = 0f;
+
+        [Tooltip("How ragged the hole edge is. 0 gives a neat circle, which never looks smashed.")]
+        [Range(0f, 0.7f)] public float holeIrregularity = 0.32f;
+
+        [Tooltip("Thickness of the ice, shown as a broken edge hanging down around the hole.")]
+        [Range(0.02f, 2f)] public float iceThickness = 0.35f;
+
+        [Tooltip("Cut through the floor as well, so the hole is an open shaft the player can fall " +
+                 "through. Off leaves a hole you can only look into.")]
+        public bool holeOpensThrough = true;
+
+        [Tooltip("Slabs of broken ice tipped up around the rim, where the sheet gave way.")]
+        [Range(0, 30)] public int holeDebrisCount = 10;
+
         [Header("Detail: ice shards")]
         [Tooltip("Broken slabs of ice heaved up out of the sheet.")]
         [Range(0, 40)] public int shardCount = 12;

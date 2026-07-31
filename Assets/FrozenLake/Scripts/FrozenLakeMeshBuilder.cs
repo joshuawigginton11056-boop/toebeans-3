@@ -26,15 +26,29 @@ namespace FrozenLake
 
             var shore = new ShoreShape(s, ref rng);
             var plates = new PlateField(s, shore, ref rng);
+            HoleShape hole = s.hole ? new HoleShape(s, shore, ref rng) : null;
 
             Vector3[] shoreRing = BuildShoreRing(s, shore);
 
-            BuildIce(buf, s, shore, plates, shoreRing, ref rng);
+            BuildIce(buf, s, shore, plates, shoreRing, hole, ref rng);
             Vector3[] bankOuter = BuildBank(buf, s, shore, shoreRing, ref rng);
-            BuildSkirtAndFloor(buf, s, bankOuter);
-            BuildShards(buf, s, shore, ref rng);
-            BuildSnowPatches(buf, s, shore, ref rng);
-            BuildRocks(buf, s, shore, ref rng);
+            BuildSkirtAndFloor(buf, s, bankOuter, hole);
+            BuildShards(buf, s, shore, hole, ref rng);
+            BuildSnowPatches(buf, s, shore, hole, ref rng);
+            BuildRocks(buf, s, shore, hole, ref rng);
+            if (hole != null) BuildHoleDebris(buf, s, hole, ref rng);
+
+            if (hole != null)
+            {
+                buf.Hole = new HoleInfo
+                {
+                    Exists = true,
+                    Center = new Vector3(hole.CenterX, 0f, hole.CenterZ),
+                    Radius = hole.MeanRadius,
+                    ClearRadius = hole.ClearRadius,
+                    ShaftDepth = s.holeOpensThrough ? s.depth : 0f
+                };
+            }
 
             return buf;
         }
@@ -99,6 +113,110 @@ namespace FrozenLake
         static float IceHeight(float x, float z, int seed)
         {
             return LakeNoise.Signed(x * 0.18f, z * 0.18f, seed) * 0.035f;
+        }
+
+        // ------------------------------------------------------------------ hole
+
+        /// <summary>
+        /// The smashed opening in the ice. Null when the lake is intact.
+        ///
+        /// The rim is deliberately not built to this outline. Ice triangles are dropped wholesale
+        /// when their centre falls inside it, which leaves a ragged edge along the existing facets;
+        /// that reads far more like something gave way than a clean cut ever would.
+        /// </summary>
+        sealed class HoleShape
+        {
+            readonly float _radius;
+            readonly float[] _amp;
+            readonly float[] _phase;
+            readonly int[] _freq;
+
+            public readonly float CenterX;
+            public readonly float CenterZ;
+
+            public HoleShape(FrozenLakeSettings s, ShoreShape shore, ref Rng rng)
+            {
+                // Capped so the rim always lands on ice. A hole wider than the lake would leave the
+                // shaft hanging outside the block with no sheet left to break.
+                _radius = Mathf.Clamp(s.holeRadius, 0.1f, shore.MeanRadius * 0.62f);
+
+                // Keep the whole rim clear of the shoreline, whatever the offset and radius ask for.
+                float maxOffset = Mathf.Max(0f, shore.MeanRadius * 0.5f - _radius * 1.35f);
+                float ox = Mathf.Clamp(s.holeOffsetX, -0.5f, 0.5f) * shore.MeanRadius;
+                float oz = Mathf.Clamp(s.holeOffsetZ, -0.5f, 0.5f) * shore.MeanRadius;
+                float len = Mathf.Sqrt(ox * ox + oz * oz);
+                if (len > maxOffset && len > 0.0001f)
+                {
+                    ox *= maxOffset / len;
+                    oz *= maxOffset / len;
+                }
+                CenterX = ox;
+                CenterZ = oz;
+
+                _freq = new[] { 2, 3, 5 };
+                _amp = new float[_freq.Length];
+                _phase = new float[_freq.Length];
+                float[] weights = { 0.5f, 0.32f, 0.18f };
+                for (int i = 0; i < _freq.Length; i++)
+                {
+                    _amp[i] = s.holeIrregularity * weights[i] * rng.Range(0.6f, 1.4f);
+                    _phase[i] = rng.Value() * Mathf.PI * 2f;
+                }
+            }
+
+            public float Radius(float angle)
+            {
+                float f = 1f;
+                for (int i = 0; i < _freq.Length; i++)
+                    f += _amp[i] * Mathf.Sin(angle * _freq[i] + _phase[i]);
+                return _radius * Mathf.Max(0.4f, f);
+            }
+
+            /// <summary>True when the point falls inside the opening, optionally grown by a margin.</summary>
+            public bool Contains(float x, float z, float grow)
+            {
+                float dx = x - CenterX;
+                float dz = z - CenterZ;
+                float r = Mathf.Sqrt(dx * dx + dz * dz);
+                if (r < 0.0001f) return true;
+                return r < Radius(Mathf.Atan2(dz, dx)) * grow;
+            }
+
+            /// <summary>Average radius of the opening, after clamping.</summary>
+            public float MeanRadius { get { return _radius; } }
+
+            /// <summary>
+            /// Radius of the column down the middle that nothing is allowed to intrude on. The
+            /// ragged outline never comes closer than 0.4 of the mean radius, so half of it leaves
+            /// a comfortable margin.
+            /// </summary>
+            public float ClearRadius { get { return _radius * 0.5f; } }
+
+            /// <summary>
+            /// True when a prop of the given horizontal reach, placed here, would either stand on
+            /// ice that is gone or lean far enough in to foul the fall path.
+            /// </summary>
+            public bool Blocks(Vector3 at, float reach)
+            {
+                float dx = at.x - CenterX;
+                float dz = at.z - CenterZ;
+                float d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d - reach < ClearRadius) return true;
+                return Contains(at.x, at.z, 1.05f);
+            }
+
+            /// <summary>The outline as a closed loop at the given height and radius scale.</summary>
+            public Vector3[] Loop(int segments, float y, float scale)
+            {
+                var loop = new Vector3[segments];
+                for (int j = 0; j < segments; j++)
+                {
+                    float a = j * Mathf.PI * 2f / segments;
+                    float r = Radius(a) * scale;
+                    loop[j] = new Vector3(CenterX + Mathf.Cos(a) * r, y, CenterZ + Mathf.Sin(a) * r);
+                }
+                return loop;
+            }
         }
 
         // ------------------------------------------------------------------ plates
@@ -195,7 +313,7 @@ namespace FrozenLake
         }
 
         static void BuildIce(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, PlateField plates,
-                             Vector3[] shoreRing, ref Rng rng)
+                             Vector3[] shoreRing, HoleShape hole, ref Rng rng)
         {
             int seg = Mathf.Max(3, s.angularSegments);
             int rings = Mathf.Max(2, s.radialRings);
@@ -243,29 +361,157 @@ namespace FrozenLake
                 }
             }
 
+            // Emit through a helper that records grid topology, so the hole rim can be found later.
+            var sheet = new IceSheet(seg, rings, grid);
+
             for (int i = 0; i < rings; i++)
             {
                 for (int j = 0; j < seg; j++)
                 {
                     int j1 = (j + 1) % seg;
-                    Vector3 a = grid[i][j];
-                    Vector3 b = grid[i][j1];
-                    Vector3 c = grid[i + 1][j];
-                    Vector3 d = grid[i + 1][j1];
+                    int a = sheet.Index(i, j);
+                    int b = sheet.Index(i, j1);
+                    int c = sheet.Index(i + 1, j);
+                    int d = sheet.Index(i + 1, j1);
 
                     bool flip = ((i + j) & 1) == 0;
                     if (flip)
                     {
-                        EmitIceTriangle(buf, plates, shore, s.seed, a, b, d);
-                        EmitIceTriangle(buf, plates, shore, s.seed, a, d, c);
+                        sheet.Add(a, b, d);
+                        sheet.Add(a, d, c);
                     }
                     else
                     {
-                        EmitIceTriangle(buf, plates, shore, s.seed, a, b, c);
-                        EmitIceTriangle(buf, plates, shore, s.seed, b, d, c);
+                        sheet.Add(a, b, c);
+                        sheet.Add(b, d, c);
                     }
                 }
             }
+
+            sheet.Emit(buf, plates, shore, s, hole);
+            if (hole != null) sheet.AddBrokenEdge(buf, s, hole, ref rng);
+        }
+
+        /// <summary>
+        /// The ice sheet held as indices into a shared vertex grid, so triangles can be dropped for
+        /// the hole and the resulting boundary edges recovered afterwards. A boundary edge is simply
+        /// one used by a single surviving triangle.
+        /// </summary>
+        sealed class IceSheet
+        {
+            readonly int _seg;
+            readonly int _rings;
+            readonly Vector3[] _verts;
+            readonly List<int> _tris = new List<int>();
+
+            public IceSheet(int seg, int rings, Vector3[][] grid)
+            {
+                _seg = seg;
+                _rings = rings;
+                // The centre collapses to one vertex so the fan there is topologically sound.
+                _verts = new Vector3[1 + rings * seg];
+                _verts[0] = grid[0][0];
+                for (int i = 1; i <= rings; i++)
+                    for (int j = 0; j < seg; j++)
+                        _verts[1 + (i - 1) * seg + j] = grid[i][j];
+            }
+
+            public int Index(int ring, int j)
+            {
+                return ring == 0 ? 0 : 1 + (ring - 1) * _seg + (j % _seg);
+            }
+
+            public Vector3 Position(int index) { return _verts[index]; }
+
+            /// <summary>True for the outermost ring, which welds to the snow berm.</summary>
+            bool IsShore(int index)
+            {
+                return index >= 1 + (_rings - 1) * _seg;
+            }
+
+            public void Add(int a, int b, int c)
+            {
+                if (a == b || b == c || a == c) return; // collapsed by the centre fan
+                _tris.Add(a); _tris.Add(b); _tris.Add(c);
+            }
+
+            /// <summary>Drops triangles inside the hole and hands the rest to the mesh.</summary>
+            public void Emit(MeshBuffer buf, PlateField plates, ShoreShape shore,
+                             FrozenLakeSettings s, HoleShape hole)
+            {
+                var kept = new List<int>(_tris.Count);
+                for (int t = 0; t < _tris.Count; t += 3)
+                {
+                    Vector3 a = _verts[_tris[t]], b = _verts[_tris[t + 1]], c = _verts[_tris[t + 2]];
+                    if (hole != null)
+                    {
+                        float cx = (a.x + b.x + c.x) / 3f;
+                        float cz = (a.z + b.z + c.z) / 3f;
+                        if (hole.Contains(cx, cz, 1f)) continue;
+                    }
+                    kept.Add(_tris[t]); kept.Add(_tris[t + 1]); kept.Add(_tris[t + 2]);
+                    EmitIceTriangle(buf, plates, shore, s.seed, a, b, c);
+                }
+                _tris.Clear();
+                _tris.AddRange(kept);
+            }
+
+            /// <summary>
+            /// Hangs a broken edge off every boundary the hole opened up, so the sheet shows its
+            /// thickness instead of looking like cut paper. The shoreline is excluded: that edge
+            /// belongs to the snow berm, not the hole.
+            /// </summary>
+            public void AddBrokenEdge(MeshBuffer buf, FrozenLakeSettings s, HoleShape hole, ref Rng rng)
+            {
+                var used = new Dictionary<long, int>();
+                for (int t = 0; t < _tris.Count; t += 3)
+                {
+                    Bump(used, _tris[t], _tris[t + 1]);
+                    Bump(used, _tris[t + 1], _tris[t + 2]);
+                    Bump(used, _tris[t + 2], _tris[t]);
+                }
+
+                foreach (var pair in used)
+                {
+                    if (pair.Value != 1) continue;
+                    int p = (int)(pair.Key >> 32);
+                    int q = (int)(pair.Key & 0xFFFFFFFFL);
+                    if (IsShore(p) && IsShore(q)) continue;
+
+                    Vector3 top0 = _verts[p];
+                    Vector3 top1 = _verts[q];
+                    float d0 = s.iceThickness * rng.Range(0.65f, 1.35f);
+                    float d1 = s.iceThickness * rng.Range(0.65f, 1.35f);
+                    Vector3 bot0 = new Vector3(top0.x, top0.y - d0, top0.z);
+                    Vector3 bot1 = new Vector3(top1.x, top1.y - d1, top1.z);
+
+                    // Boundary edges come out in arbitrary order, so orient by where the hole is
+                    // rather than trusting the winding.
+                    float mx = (top0.x + top1.x) * 0.5f;
+                    float mz = (top0.z + top1.z) * 0.5f;
+                    var toward = new Vector3(hole.CenterX - mx, 0f, hole.CenterZ - mz);
+                    AddOrientedQuad(buf, top0, top1, bot0, bot1, toward, LakeSlot.IceDeep, rng.Range(0.7f, 0.95f));
+                }
+            }
+
+            static void Bump(Dictionary<long, int> counts, int a, int b)
+            {
+                long key = a < b ? ((long)a << 32) | (uint)b : ((long)b << 32) | (uint)a;
+                int n;
+                counts.TryGetValue(key, out n);
+                counts[key] = n + 1;
+            }
+        }
+
+        /// <summary>Adds a wall quad, flipping the winding so its face points along <paramref name="toward"/>.</summary>
+        static void AddOrientedQuad(MeshBuffer buf, Vector3 top0, Vector3 top1, Vector3 bot0, Vector3 bot1,
+                                    Vector3 toward, LakeSlot slot, float shade)
+        {
+            Vector3 n = Vector3.Cross(top1 - top0, bot0 - top0);
+            if (Vector3.Dot(n, toward) < 0f)
+                buf.AddQuad(top1, top0, bot1, bot0, slot, shade);
+            else
+                buf.AddQuad(top0, top1, bot0, bot1, slot, shade);
         }
 
         /// <summary>
@@ -294,6 +540,15 @@ namespace FrozenLake
             float shoreR = shore.Radius(Mathf.Atan2(p.z, p.x));
             float fade = Mathf.Clamp01((1f - r / Mathf.Max(0.001f, shoreR)) / 0.12f);
             return new Vector3(p.x, p.y + plates.OffsetAt(plate, p.x, p.z) * fade, p.z);
+        }
+
+        /// <summary>
+        /// True when a scattered prop would stand on ice that is gone, or would overhang the fall
+        /// path. Reach is how far the prop's geometry can extend sideways from its centre.
+        /// </summary>
+        static bool InHole(HoleShape hole, Vector3 at, float reach)
+        {
+            return hole != null && hole.Blocks(at, reach);
         }
 
         /// <summary>Distance between two points ignoring height, i.e. across the ice plane.</summary>
@@ -375,7 +630,7 @@ namespace FrozenLake
 
         // ------------------------------------------------------------------ solid body
 
-        static void BuildSkirtAndFloor(MeshBuffer buf, FrozenLakeSettings s, Vector3[] outer)
+        static void BuildSkirtAndFloor(MeshBuffer buf, FrozenLakeSettings s, Vector3[] outer, HoleShape hole)
         {
             if (s.depth <= 0f) return;
 
@@ -395,12 +650,145 @@ namespace FrozenLake
                 buf.AddQuad(outer[j], outer[j1], floor[j], floor[j1], LakeSlot.Rock, 0.82f);
             }
 
-            buf.AddFan(new Vector3(0f, floorY, 0f), floor, false, LakeSlot.Rock, 0.7f);
+            bool shaft = hole != null && s.holeOpensThrough;
+            if (!shaft)
+            {
+                buf.AddFan(new Vector3(0f, floorY, 0f), floor, false, LakeSlot.Rock, 0.7f);
+                return;
+            }
+
+            // Sunk a touch inside the ragged ice edge so the shaft walls are never left poking
+            // through the sheet where the two outlines disagree.
+            const float ShaftScale = 0.82f;
+            int shaftSegments = Mathf.Max(8, seg / 2);
+            Vector3[] top = hole.Loop(shaftSegments, -s.iceThickness * 0.5f, ShaftScale);
+            Vector3[] bottom = hole.Loop(shaftSegments, floorY, ShaftScale);
+
+            // Walls face inward: the player only ever sees them from inside the shaft.
+            for (int j = 0; j < shaftSegments; j++)
+            {
+                int j1 = (j + 1) % shaftSegments;
+                var inward = new Vector3(hole.CenterX - (top[j].x + top[j1].x) * 0.5f, 0f,
+                                         hole.CenterZ - (top[j].z + top[j1].z) * 0.5f);
+                AddOrientedQuad(buf, top[j], top[j1], bottom[j], bottom[j1], inward, LakeSlot.Rock, 0.55f);
+            }
+
+            AddFloorWithHole(buf, floor, bottom, hole);
+        }
+
+        /// <summary>
+        /// Floors the block as a ring between its outer edge and the shaft mouth. Both loops wind the
+        /// same way around the hole centre, so walking them in step by angle triangulates the gap
+        /// without any general-purpose polygon work.
+        /// </summary>
+        static void AddFloorWithHole(MeshBuffer buf, Vector3[] outer, Vector3[] inner, HoleShape hole)
+        {
+            int no = outer.Length;
+            int ni = inner.Length;
+
+            var outerAngle = new float[no];
+            for (int j = 0; j < no; j++)
+                outerAngle[j] = Mathf.Atan2(outer[j].z - hole.CenterZ, outer[j].x - hole.CenterX);
+            var innerAngle = new float[ni];
+            for (int j = 0; j < ni; j++)
+                innerAngle[j] = Mathf.Atan2(inner[j].z - hole.CenterZ, inner[j].x - hole.CenterX);
+
+            int io = NearestAngle(outerAngle, innerAngle[0]);
+            int ii = 0;
+            int tookOuter = 0, tookInner = 0;
+            float outerTravel = 0f, innerTravel = 0f;
+
+            // Walk both loops once, each step advancing whichever one has swept the smaller angle
+            // so far. That keeps the strip fanning evenly and closes it exactly.
+            for (int step = 0; step < no + ni; step++)
+            {
+                int ioNext = (io + 1) % no;
+                int iiNext = (ii + 1) % ni;
+
+                bool advanceOuter;
+                if (tookOuter >= no) advanceOuter = false;
+                else if (tookInner >= ni) advanceOuter = true;
+                else
+                {
+                    float nextOuter = outerTravel + AngleGap(outerAngle[io], outerAngle[ioNext]);
+                    float nextInner = innerTravel + AngleGap(innerAngle[ii], innerAngle[iiNext]);
+                    advanceOuter = nextOuter <= nextInner;
+                }
+
+                // Wound to face down: this is the underside of the block.
+                if (advanceOuter)
+                {
+                    buf.AddTriangle(inner[ii], outer[io], outer[ioNext], LakeSlot.Rock, 0.7f);
+                    outerTravel += AngleGap(outerAngle[io], outerAngle[ioNext]);
+                    io = ioNext;
+                    tookOuter++;
+                }
+                else
+                {
+                    buf.AddTriangle(inner[ii], outer[io], inner[iiNext], LakeSlot.Rock, 0.7f);
+                    innerTravel += AngleGap(innerAngle[ii], innerAngle[iiNext]);
+                    ii = iiNext;
+                    tookInner++;
+                }
+            }
+        }
+
+        static int NearestAngle(float[] angles, float target)
+        {
+            int best = 0;
+            float bestD = float.MaxValue;
+            for (int i = 0; i < angles.Length; i++)
+            {
+                float d = Mathf.Abs(Mathf.Atan2(Mathf.Sin(angles[i] - target), Mathf.Cos(angles[i] - target)));
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            return best;
+        }
+
+        /// <summary>Forward angular distance from a to b, always in [0, 2pi).</summary>
+        static float AngleGap(float a, float b)
+        {
+            float d = b - a;
+            while (d < 0f) d += Mathf.PI * 2f;
+            while (d >= Mathf.PI * 2f) d -= Mathf.PI * 2f;
+            return d;
+        }
+
+        // ------------------------------------------------------------------ hole debris
+
+        /// <summary>
+        /// Worst-case horizontal reach of a shard: its widest polygon radius plus its thickness,
+        /// since tilting only ever pulls a slab in.
+        /// </summary>
+        static float ShardReach(FrozenLakeSettings s)
+        {
+            float maxSize = Mathf.Max(0.05f, s.shardSize * 1.5f);
+            return maxSize * 1.38f;
+        }
+
+        /// <summary>
+        /// Slabs thrown clear when the sheet gave way. They sit on the ice around the rim, pushed
+        /// far enough out that even the widest one cannot lean into the fall path.
+        /// </summary>
+        static void BuildHoleDebris(MeshBuffer buf, FrozenLakeSettings s, HoleShape hole, ref Rng rng)
+        {
+            float reach = ShardReach(s);
+            float minRadius = hole.ClearRadius + reach;
+
+            for (int i = 0; i < s.holeDebrisCount; i++)
+            {
+                float angle = rng.Value() * Mathf.PI * 2f;
+                float r = Mathf.Max(hole.Radius(angle) * rng.Range(1f, 1.35f), minRadius);
+                var at = new Vector3(hole.CenterX + Mathf.Cos(angle) * r, 0f,
+                                     hole.CenterZ + Mathf.Sin(angle) * r);
+                at.y = IceHeight(at.x, at.z, s.seed);
+                AddShard(buf, s, at, ref rng);
+            }
         }
 
         // ------------------------------------------------------------------ ice shards
 
-        static void BuildShards(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, ref Rng rng)
+        static void BuildShards(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, HoleShape hole, ref Rng rng)
         {
             if (s.shardCount <= 0) return;
 
@@ -430,6 +818,8 @@ namespace FrozenLake
                     float angle = rng.Value() * Mathf.PI * 2f;
                     at = shore.PointOnIce(angle, Mathf.Sqrt(rng.Value()) * 0.9f, s.seed);
                 }
+                // Anything that would have landed in the opening fell through with the ice.
+                if (InHole(hole, at, ShardReach(s))) continue;
                 AddShard(buf, s, at, ref rng);
             }
         }
@@ -504,13 +894,14 @@ namespace FrozenLake
 
         // ------------------------------------------------------------------ snow drifts
 
-        static void BuildSnowPatches(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, ref Rng rng)
+        static void BuildSnowPatches(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, HoleShape hole, ref Rng rng)
         {
             for (int i = 0; i < s.snowPatchCount; i++)
             {
                 float angle = rng.Value() * Mathf.PI * 2f;
                 float frac = Mathf.Sqrt(rng.Value()) * 0.92f;
                 Vector3 at = shore.PointOnIce(angle, frac, s.seed);
+                if (InHole(hole, at, s.snowPatchSize * 1.5f)) continue;
 
                 int n = rng.Range(6, 10);
                 float size = Mathf.Max(0.05f, s.snowPatchSize * rng.Range(0.55f, 1.5f));
@@ -544,7 +935,7 @@ namespace FrozenLake
 
         // ------------------------------------------------------------------ rocks
 
-        static void BuildRocks(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, ref Rng rng)
+        static void BuildRocks(MeshBuffer buf, FrozenLakeSettings s, ShoreShape shore, HoleShape hole, ref Rng rng)
         {
             for (int i = 0; i < s.rockCount; i++)
             {
@@ -562,6 +953,7 @@ namespace FrozenLake
                     float h = s.bankHeight * Mathf.Sin(Mathf.PI * Mathf.Pow(w, 0.7f));
                     at = new Vector3(Mathf.Cos(angle) * r, h, Mathf.Sin(angle) * r);
                 }
+                if (InHole(hole, at, s.rockSize * 2.1f)) continue;
                 AddRock(buf, s, at, ref rng);
             }
         }
