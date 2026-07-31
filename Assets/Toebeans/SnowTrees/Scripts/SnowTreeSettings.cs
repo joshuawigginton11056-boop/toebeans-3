@@ -71,8 +71,13 @@ namespace Toebeans.SnowTrees
         public float snowScale;
 
         [Range(0f, 1f)]
-        [Tooltip("Chance that any given bough carries a snow pillow.")]
+        [Tooltip("Chance that any given bough carries a snow drift.")]
         public float snowCoverage;
+
+        [Range(0.03f, 0.14f)]
+        [Tooltip("Snow detail: voxel size as a fraction of radius. Smaller is " +
+                 "rounder and far heavier; 0.055 is the authored look.")]
+        public float snowCellScale;
 
         public static SnowTreeSettings ForVariant(SnowTreeVariant variant)
         {
@@ -91,20 +96,22 @@ namespace Toebeans.SnowTrees
                         lowestTier = 0.14f,
                         snowScale = 1.05f,
                         snowCoverage = 1f,
+                        snowCellScale = 0.055f,
                     };
                 case SnowTreeVariant.SnowSpruceC:
                     return new SnowTreeSettings
                     {
                         seed = 4242,
                         height = 8.6f,
-                        radius = 0.95f,
-                        tiers = 17,
+                        radius = 1.15f,
+                        tiers = 14,
                         shape = SnowTreeShape.Slim,
-                        boughsPerTier = 5,
+                        boughsPerTier = 6,
                         rootCount = 7,
-                        lowestTier = 0.12f,
-                        snowScale = 1.15f,
+                        lowestTier = 0.13f,
+                        snowScale = 1.2f,
                         snowCoverage = 1f,
+                        snowCellScale = 0.055f,
                     };
                 default:
                     return new SnowTreeSettings
@@ -114,11 +121,12 @@ namespace Toebeans.SnowTrees
                         radius = 1.7f,
                         tiers = 12,
                         shape = SnowTreeShape.Wide,
-                        boughsPerTier = 7,
+                        boughsPerTier = 8,
                         rootCount = 6,
                         lowestTier = 0.16f,
                         snowScale = 1f,
                         snowCoverage = 1f,
+                        snowCellScale = 0.055f,
                     };
             }
         }
@@ -135,6 +143,8 @@ namespace Toebeans.SnowTrees
             s.lowestTier = Mathf.Clamp(s.lowestTier, 0f, 0.5f);
             s.snowScale = Mathf.Clamp(s.snowScale, 0f, 3f);
             s.snowCoverage = Mathf.Clamp01(s.snowCoverage);
+            // A zero here would mean an infinite grid; clamp before it bites.
+            s.snowCellScale = Mathf.Clamp(s.snowCellScale <= 0f ? 0.055f : s.snowCellScale, 0.03f, 0.2f);
             return s;
         }
     }

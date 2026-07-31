@@ -109,10 +109,10 @@ MonoBehaviour:
     radius: 1.7
     tiers: 12
     shape: 0
-    boughsPerTier: 7
+    boughsPerTier: 8
     rootCount: 6
     lowestTier: 0.16
     snowScale: 1
     snowCoverage: 1
-  flatShading: 1
+    snowCellScale: 0.055
   buildOnEnable: 1

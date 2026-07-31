@@ -19,9 +19,6 @@ namespace Toebeans.SnowTrees
 
         [SerializeField] SnowTreeSettings settings = SnowTreeSettings.ForVariant(SnowTreeVariant.SnowSpruceA);
 
-        [Tooltip("Hard-edged faces (matches the stylised kit) at the cost of more vertices.")]
-        [SerializeField] bool flatShading = true;
-
         [Tooltip("Rebuild whenever the object is enabled. Turn off once a mesh has been baked.")]
         [SerializeField] bool buildOnEnable = true;
 
@@ -107,7 +104,7 @@ namespace Toebeans.SnowTrees
                 _mesh = new Mesh { name = $"{name} (Snow Tree)", hideFlags = HideFlags.DontSave };
             }
 
-            SnowTreeMeshBuilder.Build(EffectiveSettings, _mesh, flatShading);
+            SnowTreeMeshBuilder.Build(EffectiveSettings, _mesh);
             filter.sharedMesh = _mesh;
         }
 
@@ -127,7 +124,7 @@ namespace Toebeans.SnowTrees
         /// <summary>Builds a standalone, non-shared mesh - used by the baker.</summary>
         public Mesh CreateBakedMesh()
         {
-            Mesh baked = SnowTreeMeshBuilder.Build(EffectiveSettings, flatShading);
+            Mesh baked = SnowTreeMeshBuilder.Build(EffectiveSettings);
             baked.name = customSettings ? name : variant.AssetName();
             return baked;
         }

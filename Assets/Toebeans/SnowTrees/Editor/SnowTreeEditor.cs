@@ -38,7 +38,8 @@ namespace Toebeans.SnowTrees.Editor
             {
                 EditorGUILayout.HelpBox(
                     $"{filter.sharedMesh.triangles.Length / 3} triangles, " +
-                    $"{filter.sharedMesh.vertexCount} vertices.",
+                    $"{filter.sharedMesh.vertexCount} vertices. Snow detail is the " +
+                    "biggest lever on both - raise Snow Cell Scale for a lighter mesh.",
                     MessageType.None);
             }
         }

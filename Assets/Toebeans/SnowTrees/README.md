@@ -6,9 +6,9 @@ tree is a diff you can read.
 
 | Prefab | Silhouette | Size | Triangles |
 | --- | --- | --- | --- |
-| `SnowSpruce_A` | full spruce, broad skirt | 6.7 m tall, 3.4 m wide | ~5.8k |
-| `SnowSpruce_B` | narrow steeple | 8.3 m tall, 2.7 m wide | ~6.8k |
-| `SnowSpruce_C` | slim spire | 9.3 m tall, 1.6 m wide | ~6.3k |
+| `SnowSpruce_A` | full spruce, broad skirt | 6.6 m tall, 3.6 m wide | ~27k |
+| `SnowSpruce_B` | narrow steeple | 8.3 m tall, 3.0 m wide | ~30k |
+| `SnowSpruce_C` | slim spire | 9.3 m tall, 2.2 m wide | ~34k |
 
 Each tree is one mesh with three submeshes — `0` bark, `1` foliage, `2` snow —
 matched by the three materials in `Materials/`. Trunks stand at the local
@@ -30,25 +30,37 @@ origin and grow up +Y, so a prefab drops straight onto terrain.
 
 ## How the geometry is put together
 
-`SnowTreeMeshBuilder` grows a tree from two primitives:
+**Wood** — swept tubes: a tapered trunk, and roots splaying out of the ground
+at the base.
 
-* **Swept tube** — a ring of vertices carried along a path. Used for the
-  tapered trunk, the exposed roots splaying out of the ground, every drooping
-  bough (elliptical cross-section, so boughs read flat) and the needle sprigs
-  that poke up between snow lumps.
-* **Snow blob** — a squashed, randomly jittered dome with its rim tucked
-  under, so it reads as a pillow overhanging a branch rather than a ball
-  resting on one.
+**Needles** — each bough is a thin twig carrying a feathered spray of small
+needle blades, every blade emitted twice with opposing windings and normals so
+it lights correctly from both sides under backface culling. Extra tufts push up
+through the snow at each tier, which is what keeps green visible against all
+that white.
+
+**Snow** — not modelled as lumps at all. Each drift is a squashed sphere or a
+tapered capsule pushed into a single signed distance field
+(`SnowField`), smooth-unioned with a polynomial `smin`, then meshed in one pass
+with naive surface nets. Two overlapping drifts therefore come out as *one*
+continuous rounded mantle with a soft fillet between them, rather than two
+intersecting shells — the difference between snow and a pile of boulders.
+Vertex normals come from the field gradient, so the surface shades smoothly no
+matter how coarse the voxels are.
 
 Tiers of boughs are placed up the trunk, their reach set by a per-species
-`Profile` curve (the silhouette). Snow rides the inner half of each bough and
-leaves the tip bare, which is what keeps green visible against all that white.
-Above the top tier a single continuous needle spire carries three shrinking
-snow caps to the point.
+`Profile` curve (the silhouette). Drift size is the larger of "a fraction of
+the bough" and "a fraction of the tier spacing", so tall narrow trees still
+merge vertically into a cascade instead of stacking separate plates. Above the
+top tier, one continuous drift tapers along a needle spire to the point.
 
 Randomness comes from a small deterministic LCG seeded per tree, so the same
 settings always produce the same mesh — on any machine, in any Unity session.
 
-`Flat Shading` (on by default) splits triangles so every face keeps a hard
-normal, which is the faceted look the stylised kit uses. Turning it off welds
-normals and roughly thirds the vertex count.
+## Cost
+
+Smooth snow is the expensive part: `Snow Cell Scale` sets the voxel size as a
+fraction of the tree's radius, and drives both build time and triangle count.
+`0.055` is the authored look; `0.08`–`0.1` roughly halves the mesh for
+background trees, at the cost of rounder, softer drifts. Bake the results if a
+scene places many of them.

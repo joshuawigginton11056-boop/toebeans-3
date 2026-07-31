@@ -106,13 +106,13 @@ MonoBehaviour:
   settings:
     seed: 4242
     height: 8.6
-    radius: 0.95
-    tiers: 17
+    radius: 1.15
+    tiers: 14
     shape: 2
-    boughsPerTier: 5
+    boughsPerTier: 6
     rootCount: 7
-    lowestTier: 0.12
-    snowScale: 1.15
+    lowestTier: 0.13
+    snowScale: 1.2
     snowCoverage: 1
-  flatShading: 1
+    snowCellScale: 0.055
   buildOnEnable: 1

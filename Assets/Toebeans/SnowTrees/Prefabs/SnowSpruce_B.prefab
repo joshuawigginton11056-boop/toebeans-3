@@ -114,5 +114,5 @@ MonoBehaviour:
     lowestTier: 0.14
     snowScale: 1.05
     snowCoverage: 1
-  flatShading: 1
+    snowCellScale: 0.055
   buildOnEnable: 1
