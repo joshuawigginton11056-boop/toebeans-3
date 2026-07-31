@@ -1,0 +1,80 @@
+# Frozen Lake (Low Poly)
+
+A flat-shaded frozen lake built for stylised/low-poly scenes: a cracked ice sheet ringed by a snow
+berm, with heaved ice shards, snow drifts and boulders on top, sitting on a solid tapered block so
+it reads as a chunk of terrain rather than a flat plane.
+
+Roughly **2,100 triangles** at the default settings, and about **29 x 32 m** across.
+
+## Using it
+
+Drag `FrozenLake.prefab` into a scene, or use **GameObject → 3D Object → Frozen Lake (Low Poly)**.
+
+The mesh is generated procedurally from a seed rather than shipped as a binary model, so:
+
+* it rebuilds automatically whenever the scene loads or scripts recompile — nothing to import;
+* every setting in the inspector is a live preview;
+* one prefab covers an unlimited number of lakes. Drop several in a scene and give each a different
+  seed and they will all look different.
+
+Press **Randomise Seed** in the inspector until you like one. Press **Save Mesh Asset…** if you would
+rather bake that particular lake down to a static `.asset` and drop the generator component.
+
+## Materials
+
+The renderer takes four materials, in submesh order. All four are plain URP/Lit, so retint them or
+swap them for your own without touching the mesh.
+
+| # | Material       | Where it lands                                   |
+|---|----------------|--------------------------------------------------|
+| 0 | `FL_Ice_Pale`  | most of the ice sheet, plus some shards           |
+| 1 | `FL_Ice_Deep`  | darker clear ice toward the middle, plus shards   |
+| 2 | `FL_Snow`      | the berm, snow-covered plates, drifts on the ice  |
+| 3 | `FL_Rock`      | boulders, exposed rock on the berm, the underside |
+
+The mesh also carries **vertex colours** matching those four tints, so a vertex-colour shader can
+render the whole thing in a single draw call if you would rather not use four materials.
+
+UVs are planar, projected on whichever axis each face points along most strongly, at
+`uvScale` world units per tile.
+
+## Settings worth knowing
+
+| Setting                | Effect                                                                 |
+|------------------------|------------------------------------------------------------------------|
+| `seed`                 | Everything. Same seed always gives the same lake, on every platform.    |
+| `radius`               | Overall size. `angularSegments` / `radialRings` drive the poly budget.  |
+| `shoreIrregularity`    | 0 gives a round pond; 0.45 gives a rambling shoreline.                  |
+| `plateCount`           | How many plates the ice cracks into. Fewer = bigger, flatter slabs.     |
+| `plateHeightVariation` | Step between neighbouring plates. This is what reads as cracks.         |
+| `bankWidth` / `bankHeight` | The snow berm. Set both to 0 for bare ice with no shore.            |
+| `depth`                | Thickness of the solid block underneath. 0 leaves just the surface.     |
+
+Turning `shardCount`, `snowPatchCount` and `rockCount` down to 0 leaves a clean ice sheet, which is
+a good starting point if you want to scatter your own props instead.
+
+## Performance notes
+
+* The whole thing is one mesh with four submeshes — four draw calls, or one with a vertex-colour
+  shader. Enable GPU instancing on the materials if you place many lakes.
+* Generation is cheap (a few ms at default settings) but it is not free. It runs on load, not per
+  frame. If you are spawning lakes at runtime, call `FrozenLakeGenerator.Create(settings)` once and
+  reuse the mesh.
+* The `MeshCollider` uses the full mesh. For a lake you only ever walk on, a flat box or a baked
+  simplified collider will be considerably cheaper.
+
+## Files
+
+```
+FrozenLake.prefab              ready-to-drop prefab, materials wired up
+Scripts/FrozenLakeGenerator.cs the MonoBehaviour: builds the mesh, owns its lifetime
+Scripts/FrozenLakeSettings.cs  every tunable, in one serializable class
+Scripts/FrozenLakeMeshBuilder.cs  the geometry itself: maths in, triangles out
+Scripts/MeshBuffer.cs          flat-shaded triangle accumulator, planar UVs, vertex colours
+Scripts/LakeNoise.cs           deterministic rng and value noise
+Editor/                        inspector buttons and the GameObject menu entry
+Materials/                     the four URP/Lit materials
+```
+
+`FrozenLakeMeshBuilder` has no dependency on the scene, on assets, or on Unity's global random
+state, so it can be driven from a test or a build script as easily as from the inspector.
