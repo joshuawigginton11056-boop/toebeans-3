@@ -6,9 +6,9 @@ tree is a diff you can read.
 
 | Prefab | Silhouette | Size | Triangles |
 | --- | --- | --- | --- |
-| `SnowSpruce_A` | full spruce, broad skirt | 6.6 m tall, 3.6 m wide | ~27k |
-| `SnowSpruce_B` | narrow steeple | 8.3 m tall, 3.0 m wide | ~30k |
-| `SnowSpruce_C` | slim spire | 9.3 m tall, 2.2 m wide | ~34k |
+| `SnowSpruce_A` | full spruce, broad skirt | 6.6 m tall, 3.6 m wide | ~26k |
+| `SnowSpruce_B` | narrow steeple | 8.3 m tall, 2.8 m wide | ~29k |
+| `SnowSpruce_C` | slim spire | 9.3 m tall, 2.4 m wide | ~38k |
 
 Each tree is one mesh with three submeshes — `0` bark, `1` foliage, `2` snow —
 matched by the three materials in `Materials/`. Trunks stand at the local
@@ -39,20 +39,22 @@ it lights correctly from both sides under backface culling. Extra tufts push up
 through the snow at each tier, which is what keeps green visible against all
 that white.
 
-**Snow** — not modelled as lumps at all. Each drift is a squashed sphere or a
-tapered capsule pushed into a single signed distance field
+**Snow** — dollops. Each bough carries a rounded lump, a lip hanging off its
+outer edge, and usually a smaller clump further out. None of them are separate
+objects: they are squashed spheres pushed into a single signed distance field
 (`SnowField`), smooth-unioned with a polynomial `smin`, then meshed in one pass
-with naive surface nets. Two overlapping drifts therefore come out as *one*
-continuous rounded mantle with a soft fillet between them, rather than two
-intersecting shells — the difference between snow and a pile of boulders.
-Vertex normals come from the field gradient, so the surface shades smoothly no
-matter how coarse the voxels are.
+with naive surface nets. Lumps that touch fuse with a soft fillet rather than
+intersecting as two shells — the difference between snow and a pile of gravel —
+while lumps that don't touch stay readable as individual dollops. Vertex
+normals come from the field gradient, so the surface shades smoothly no matter
+how coarse the voxels are.
 
 Tiers of boughs are placed up the trunk, their reach set by a per-species
-`Profile` curve (the silhouette). Drift size is the larger of "a fraction of
-the bough" and "a fraction of the tier spacing", so tall narrow trees still
-merge vertically into a cascade instead of stacking separate plates. Above the
-top tier, one continuous drift tapers along a needle spire to the point.
+`Profile` curve (the silhouette). Dollop size is the larger of "a fraction of
+the bough" and "a fraction of the tier spacing, scaled by how wide that tier
+is", so the tall narrow trees read as a cascade of lumps down a spire rather
+than either stacked plates or one fused column. Above the top tier, shrinking
+lumps catch on a needle spire up to the point.
 
 Randomness comes from a small deterministic LCG seeded per tree, so the same
 settings always produce the same mesh — on any machine, in any Unity session.
