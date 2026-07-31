@@ -28,6 +28,48 @@ The mesh is generated procedurally from a seed rather than shipped as a binary m
 Press **Randomise Seed** in the inspector until you like one. Press **Save Mesh Asset…** if you would
 rather bake that particular lake down to a static `.asset` and drop the generator component.
 
+## The ice material
+
+`Materials/FL_Ice_Surface.mat` is the dark, smooth, cracked ice — the look that came out of the
+mockup round. It is a plain material: **drop it on any flat surface**, including a stock Unity
+Plane. It does not need the generated mesh.
+
+Everything is procedural, computed from world-space position:
+
+* **no textures**, so nothing here goes near Git LFS;
+* **no tiling and no UVs** — the pattern never repeats and does not stretch when the surface is
+  scaled or moved;
+* cracks fade out once they are thinner than a pixel, so they do not crawl or shimmer in the
+  distance.
+
+The dark-underfoot, bright-at-the-horizon falloff is Fresnel, and it comes from Unity's own PBR
+rather than anything hand-rolled. Reflections come from whatever **Reflection Probe** covers the
+surface; with none in range it falls back to the skybox.
+
+### Tuning it
+
+| Property | What it does |
+|---|---|
+| `Main Spacing (m)` | Distance between the big cracks, in metres. The main knob. |
+| `Main Width` / `Main Strength` | How thick and how visible those cracks are. |
+| `Detail Spacing (m)` | The finer network laid over the top. |
+| `Edge Sharpness` | Higher gives tighter, harder-edged lines. |
+| `Wander (m)` | How far cracks stray from a straight Voronoi edge. 0 gives clean polygons. |
+| `Ice Smoothness` | 0.97 is a mirror. Drop it for a duller, more weathered surface. |
+| `Crack Relief` | How much cracks catch the light as grooves. |
+| `Seed` | Reshuffles the whole pattern. |
+
+Crack spacing is in **metres**, so the right value depends on how close the camera gets. The
+shipped defaults were tuned for a mid-distance view; from a low camera you will probably want
+`Main Spacing` lower, or you will go a long way between cracks.
+
+### Cost
+
+Each pixel evaluates two Voronoi layers three times (once for colour, twice more for the relief
+normal) plus noise for the wander and mottling. That is fine for a surface on desktop, but it is
+not a cheap shader. If it shows up in a profile, the first thing to drop is `Crack Relief` to 0 —
+that removes two thirds of the work.
+
 ## Materials
 
 The renderer takes four materials, in submesh order. All four are plain URP/Lit, so retint them or
@@ -111,6 +153,10 @@ a good starting point if you want to scatter your own props instead.
 ## Files
 
 ```
+Shaders/StylisedIce.shader     the dark cracked ice, URP
+Shaders/IceCracks.hlsl         the crack pattern; no Unity dependencies, compiles standalone
+Shaders/StylisedIceInput.hlsl  material properties and the surface function
+Materials/FL_Ice_Surface.mat   ready to drop on a Plane
 FrozenLake.prefab              intact lake, materials wired up
 FrozenLake_Holed.prefab        same lake with the hole punched through
 Scripts/FrozenLakeGenerator.cs the MonoBehaviour: builds the mesh, owns its lifetime
