@@ -440,11 +440,26 @@ namespace Toebeans.ScaleTest.EditorTools
                 Debug.Log($"[ScaleTest] Tagged '{camera.name}' as MainCamera.");
             }
 
-            if (cameras.Length > 1)
+            Camera[] others = cameras
+                .Where(c => c != camera && c.enabled && c.gameObject.activeInHierarchy)
+                .ToArray();
+
+            if (others.Length > 0)
             {
-                Debug.LogWarning($"[ScaleTest] The scene has {cameras.Length} cameras. The follow rig went on " +
-                                 $"'{camera.name}'. If the Game view does not follow the character, another " +
-                                 "camera is rendering over it — disable it or move the rig across.");
+                // Two enabled cameras both drawing to the screen is decided by depth, and losing that
+                // race looks exactly like the rig never attached. Win it rather than disabling the
+                // designer's own cameras behind their back.
+                float highest = others.Max(c => c.depth);
+                if (camera.depth <= highest)
+                {
+                    Undo.RecordObject(camera, "Set Up Playable Character");
+                    camera.depth = highest + 1f;
+                }
+
+                Debug.LogWarning($"[ScaleTest] '{camera.name}' carries the follow rig, but these other cameras " +
+                                 $"are also enabled and may render over it: {string.Join(", ", others.Select(c => $"'{c.name}'"))}. " +
+                                 $"Its depth was raised to {camera.depth} so it draws last. If the Game view still " +
+                                 "does not follow the character, deactivate those cameras.");
             }
 
             PlayerCameraRig rig = camera.GetComponent<PlayerCameraRig>()
