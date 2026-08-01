@@ -38,6 +38,9 @@ namespace Toebeans.ScaleTest
         [Tooltip("Key that toggles between third and first person.")]
         public Key firstPersonToggleKey = Key.V;
 
+        /// <summary>Never pull closer than this, or the character fills the whole frame.</summary>
+        const float MinimumFramingDistance = 1.0f;
+
         float _yaw;
         float _pitch = 12f;
         float _currentDistance;
@@ -109,9 +112,13 @@ namespace Toebeans.ScaleTest
             if (desiredDistance > 0f
                 && Physics.SphereCast(pivot, collisionRadius, direction, out RaycastHit hit,
                     desiredDistance, collisionLayers, QueryTriggerInteraction.Ignore)
+                // A sphere cast that starts already overlapping a collider reports distance 0. Taking
+                // that at face value yanks the camera into the character's head, so ignore it and
+                // accept a little geometry clipping instead.
+                && hit.distance > 0.01f
                 && !IsPartOfTarget(hit.collider.transform))
             {
-                desiredDistance = Mathf.Max(minDistance * 0.5f, hit.distance - collisionRadius);
+                desiredDistance = Mathf.Max(MinimumFramingDistance, hit.distance - collisionRadius);
             }
 
             // Snap in instantly, ease out, so walking into a wall never clips through the character.
