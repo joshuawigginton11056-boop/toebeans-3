@@ -52,16 +52,37 @@ namespace Toebeans.ScaleTest
             if (target == null)
                 target = FindAnyObjectByType<ThirdPersonController>();
 
-            _input = target != null ? target.Input : new PlayerInputReader(null);
-            _input ??= new PlayerInputReader(null);
+            _input = (target != null ? target.Input : null) ?? new PlayerInputReader(null);
 
             _currentDistance = distance;
             Vector3 euler = transform.eulerAngles;
             _yaw = euler.y;
-            _pitch = NormalisePitch(euler.x);
+            // Clamp immediately rather than waiting for the first look input. A camera authored
+            // looking straight down at the map would otherwise keep its 90° pitch and park the rig
+            // directly overhead, which reads as "the camera never attached".
+            _pitch = Mathf.Clamp(NormalisePitch(euler.x), minPitch, maxPitch);
 
-            if (target != null)
-                _targetRenderers = target.GetComponentsInChildren<Renderer>(includeInactive: true);
+            if (target == null)
+            {
+                Debug.LogError($"[ScaleTest] {name} has no ThirdPersonController to follow, so the camera " +
+                               "will not move. Re-run Tools > Toebeans > Set Up Playable Character.", this);
+                enabled = false;
+                return;
+            }
+
+            _targetRenderers = target.GetComponentsInChildren<Renderer>(includeInactive: true);
+
+            Camera self = GetComponent<Camera>();
+            if (Camera.main != self)
+            {
+                Debug.LogWarning($"[ScaleTest] The follow rig is on '{name}', but Camera.main is " +
+                                 $"'{(Camera.main == null ? "none" : Camera.main.name)}'. If the Game view does not " +
+                                 "follow the character, that other camera is the one rendering.", this);
+            }
+
+            // Frame the character on the first frame instead of waiting for LateUpdate, so the view
+            // is correct the instant Play starts.
+            UpdateCamera();
         }
 
         void LateUpdate()
@@ -74,7 +95,11 @@ namespace Toebeans.ScaleTest
 
             HandleToggles();
             HandleLook();
+            UpdateCamera();
+        }
 
+        void UpdateCamera()
+        {
             Vector3 pivot = target.transform.position + Vector3.up * (target.CurrentHeight * pivotHeightFraction);
             Quaternion rotation = Quaternion.Euler(_pitch, _yaw, 0f);
 
@@ -103,10 +128,11 @@ namespace Toebeans.ScaleTest
 
         void HandleLook()
         {
-            if (Cursor.lockState != CursorLockMode.Locked && Gamepad.current == null)
-                return;
+            // Mouse look only applies while the cursor is captured, otherwise moving the mouse over
+            // an unfocused Game view would spin the camera. Stick look always applies.
+            bool allowPointer = Cursor.lockState == CursorLockMode.Locked;
 
-            Vector2 look = _input.LookDegrees(mouseSensitivity, stickSensitivity, Time.deltaTime);
+            Vector2 look = _input.LookDegrees(mouseSensitivity, stickSensitivity, Time.deltaTime, allowPointer);
             _yaw += look.x;
             _pitch += invertY ? look.y : -look.y;
             _pitch = Mathf.Clamp(_pitch, minPitch, maxPitch);

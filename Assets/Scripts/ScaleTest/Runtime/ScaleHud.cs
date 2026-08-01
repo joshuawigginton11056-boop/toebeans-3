@@ -97,6 +97,10 @@ namespace Toebeans.ScaleTest
             Vector3 position = _controller.transform.position;
             text.AppendLine($"Position           {position.x:0.0}, {position.y:0.0}, {position.z:0.0}");
             text.AppendLine($"Grounded           {(_controller.IsGrounded ? "yes" : "no")}");
+            Vector2 move = _controller.MoveInput;
+            string source = _controller.Input != null ? _controller.Input.SourceDescription : "none";
+            text.AppendLine($"Input              {move.x:0.00}, {move.y:0.00}   [{source}]");
+            text.AppendLine($"Cursor             {(Cursor.lockState == CursorLockMode.Locked ? "captured" : "free — click the Game view")}");
             text.AppendLine();
             text.AppendLine("<b>LOOKING AT</b>");
             text.AppendLine(_measurement);

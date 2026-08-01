@@ -76,6 +76,8 @@ namespace Toebeans.ScaleTest
         bool _hasSpeed, _hasGrounded, _hasJump, _hasCrouch;
 
         public PlayerInputReader Input => _input;
+        /// <summary>Raw movement intent this frame, surfaced so the readout can prove input is arriving.</summary>
+        public Vector2 MoveInput { get; private set; }
         public bool IsGrounded { get; private set; }
         public bool IsCrouching => _crouching;
         /// <summary>Current planar speed in metres per second.</summary>
@@ -107,7 +109,15 @@ namespace Toebeans.ScaleTest
         void Start()
         {
             if (Camera.main != null)
+            {
                 _camera = Camera.main.transform;
+            }
+            else
+            {
+                Debug.LogWarning("[ScaleTest] No camera is tagged MainCamera, so movement will follow world " +
+                                 "axes instead of the camera, and the scale readout cannot measure anything.", this);
+            }
+
             SetCursorLocked(true);
         }
 
@@ -181,6 +191,7 @@ namespace Toebeans.ScaleTest
         void HandleMovement(float dt)
         {
             Vector2 move = _input.Move;
+            MoveInput = move;
 
             Vector3 forward = Vector3.forward;
             Vector3 right = Vector3.right;

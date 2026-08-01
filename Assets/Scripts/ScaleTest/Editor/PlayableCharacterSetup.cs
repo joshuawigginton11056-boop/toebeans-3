@@ -420,8 +420,8 @@ namespace Toebeans.ScaleTest.EditorTools
             instance.transform.position = GuessPlacementPoint();
             Undo.RegisterCreatedObjectUndo(instance, "Set Up Playable Character");
 
-            Camera camera = Camera.main
-                            ?? Object.FindObjectsByType<Camera>(FindObjectsSortMode.None).FirstOrDefault();
+            Camera[] cameras = Object.FindObjectsByType<Camera>(FindObjectsSortMode.None);
+            Camera camera = Camera.main ?? cameras.FirstOrDefault();
 
             if (camera == null)
             {
@@ -431,9 +431,33 @@ namespace Toebeans.ScaleTest.EditorTools
                 Undo.RegisterCreatedObjectUndo(cameraObject, "Set Up Playable Character");
             }
 
+            // ThirdPersonController and ScaleHud both resolve the view through Camera.main, so the
+            // camera carrying the rig has to be the tagged one or they end up looking elsewhere.
+            if (!camera.CompareTag("MainCamera"))
+            {
+                Undo.RecordObject(camera.gameObject, "Set Up Playable Character");
+                camera.gameObject.tag = "MainCamera";
+                Debug.Log($"[ScaleTest] Tagged '{camera.name}' as MainCamera.");
+            }
+
+            if (cameras.Length > 1)
+            {
+                Debug.LogWarning($"[ScaleTest] The scene has {cameras.Length} cameras. The follow rig went on " +
+                                 $"'{camera.name}'. If the Game view does not follow the character, another " +
+                                 "camera is rendering over it — disable it or move the rig across.");
+            }
+
             PlayerCameraRig rig = camera.GetComponent<PlayerCameraRig>()
                                   ?? Undo.AddComponent<PlayerCameraRig>(camera.gameObject);
             rig.target = instance.GetComponent<ThirdPersonController>();
+
+            // Frame the character now, so the Game view is already correct before entering Play and
+            // any leftover authored angle (a top-down map view, say) is discarded.
+            Undo.RecordObject(camera.transform, "Set Up Playable Character");
+            Vector3 pivot = instance.transform.position + Vector3.up * (1.8f * rig.pivotHeightFraction);
+            Quaternion rotation = Quaternion.Euler(12f, 0f, 0f);
+            camera.transform.SetPositionAndRotation(pivot + rotation * Vector3.back * rig.distance, rotation);
+
             EditorUtility.SetDirty(rig);
 
             if (camera.farClipPlane < 500f)

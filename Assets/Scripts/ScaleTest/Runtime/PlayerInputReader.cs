@@ -62,24 +62,28 @@ namespace Toebeans.ScaleTest
         /// per-frame pixel delta, stick input as a per-second rate, which is why the two paths
         /// scale differently.
         /// </summary>
-        public Vector2 LookDegrees(float mouseSensitivity, float stickSensitivity, float deltaTime)
+        public Vector2 LookDegrees(float mouseSensitivity, float stickSensitivity, float deltaTime,
+            bool allowPointer = true)
         {
             if (_look != null)
             {
                 Vector2 raw = _look.ReadValue<Vector2>();
                 bool fromPointer = _look.activeControl?.device is Pointer;
-                return fromPointer
-                    ? raw * mouseSensitivity
-                    : raw * stickSensitivity * deltaTime;
+                if (fromPointer)
+                    return allowPointer ? raw * mouseSensitivity : Vector2.zero;
+                return raw * stickSensitivity * deltaTime;
             }
 
             Vector2 result = Vector2.zero;
-            if (Mouse.current != null)
+            if (allowPointer && Mouse.current != null)
                 result += Mouse.current.delta.ReadValue() * mouseSensitivity;
             if (Gamepad.current != null)
                 result += Gamepad.current.rightStick.ReadValue() * stickSensitivity * deltaTime;
             return result;
         }
+
+        /// <summary>Short description of where input is coming from, for the on-screen readout.</summary>
+        public string SourceDescription => UsingActionAsset ? "InputSystem_Actions" : "raw devices (fallback)";
 
         public bool JumpPressedThisFrame
         {
