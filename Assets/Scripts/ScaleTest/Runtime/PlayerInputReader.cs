@@ -96,6 +96,21 @@ namespace Toebeans.ScaleTest
             }
         }
 
+        /// <summary>
+        /// The jump key's level, not its edge. Hold-to-charge jumping needs to know the key is
+        /// still down every frame, which WasPressedThisFrame cannot answer.
+        /// </summary>
+        public bool JumpHeld
+        {
+            get
+            {
+                if (_jump != null)
+                    return _jump.IsPressed();
+                return (Keyboard.current != null && Keyboard.current.spaceKey.isPressed)
+                       || (Gamepad.current != null && Gamepad.current.buttonSouth.isPressed);
+            }
+        }
+
         public bool SprintHeld
         {
             get
