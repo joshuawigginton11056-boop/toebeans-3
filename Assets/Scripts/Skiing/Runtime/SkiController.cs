@@ -37,11 +37,17 @@ namespace Toebeans.Skiing
         public float radius = 0.35f;
 
         [Header("Gravity")]
-        [Tooltip("Downward acceleration. Real gravity is -9.81; running hotter makes the mountain " +
-                 "feel steeper without re-sculpting it. THE knob for overall pace.")]
-        public float gravity = -18f;
-        [Tooltip("Hard ceiling on travel speed, m/s. 25 m/s is 90 km/h.")]
-        public float maxSpeed = 26f;
+        [Tooltip("Downward acceleration. Kept near real (-9.81) on purpose: running it hot forces " +
+                 "the drag below to run hot too, and then every flat runout brakes like a wall. " +
+                 "Raise it and you must raise the drag with it.")]
+        public float gravity = -11f;
+        [Tooltip("Hard ceiling on travel speed, m/s. 30 m/s is 108 km/h.")]
+        public float maxSpeed = 30f;
+        [Tooltip("How much speed is carried through a change of slope while still on the snow. " +
+                 "1 = skis follow the terrain and keep their momentum; 0 = every rollover onto a " +
+                 "flatter pitch costs you the vertical part of your velocity. Landings from the " +
+                 "air are separate — see landingRetention.")]
+        [Range(0f, 1f)] public float terrainFollowRetention = 1f;
 
         [Header("Edges")]
         [Tooltip("How fast sideways drift bleeds off, per second. This is the whole ski feel: high " +
@@ -58,13 +64,20 @@ namespace Toebeans.Skiing
         public float brakeGripMultiplier = 2.2f;
 
         [Header("Drag")]
-        [Tooltip("Constant snow friction, m/s². Sets how fast you trickle to a stop on the flat.")]
-        public float snowFriction = 1.2f;
-        [Tooltip("Quadratic drag while standing up. With gravity -18 this settles terminal speed on a " +
-                 "25° pitch near 19 m/s.")]
-        public float glideDrag = 0.020f;
-        [Tooltip("Quadratic drag while tucked (W). Lower than glide, so tucking is the speed input.")]
-        public float tuckDrag = 0.009f;
+        // Drag and gravity are a pair, and the pairing is the reason flats can feel like walls.
+        // Whatever speed the drag settles you at on a pitch, arriving on a flat AT that speed costs
+        // you exactly the gravity you had been gaining — that is unavoidable, not a bug. The lever
+        // is to stop the player living at terminal speed: keep gravity near real, keep the drag
+        // gentle enough that a normal run sits well below the ceiling, and the flats open up.
+        [Tooltip("Constant snow friction, m/s². Waxed skis on snow is roughly 0.3–0.6. This is what " +
+                 "eventually stops you on a dead flat; keep it small or runouts die.")]
+        public float snowFriction = 0.35f;
+        [Tooltip("Quadratic air drag standing up. With gravity -11 this settles terminal speed near " +
+                 "22 m/s on a 25° pitch — and only costs ~3 m/s² at speed on the flat.")]
+        public float glideDrag = 0.009f;
+        [Tooltip("Quadratic air drag while tucked (W). Less than half of glide, so tucking roughly " +
+                 "doubles how far a flat runout carries you — which is what tucking is FOR.")]
+        public float tuckDrag = 0.004f;
         [Tooltip("Braking deceleration along the skis (S), m/s², on top of the extra edge grip.")]
         public float brakeDecel = 12f;
 
@@ -83,10 +96,12 @@ namespace Toebeans.Skiing
         public float airSpinRate = 280f;
 
         [Header("Jumping")]
-        [Tooltip("Launch speed from a tap, m/s.")]
-        public float minJumpSpeed = 4.5f;
-        [Tooltip("Launch speed from a full charge, m/s.")]
-        public float maxJumpSpeed = 8.5f;
+        // Sized against gravity: these clear ~0.6 m and ~2 m. Lowering gravity would make the same
+        // numbers float, so the two were retuned together.
+        [Tooltip("Launch speed from a tap, m/s. Clears about 0.6 m.")]
+        public float minJumpSpeed = 3.6f;
+        [Tooltip("Launch speed from a full charge, m/s. Clears about 2 m.")]
+        public float maxJumpSpeed = 6.6f;
         [Tooltip("Seconds of held jump to reach a full charge.")]
         public float jumpChargeTime = 0.6f;
         [Tooltip("Seconds after touchdown during which the jump key does nothing — kills the pogo bounce.")]
@@ -286,8 +301,20 @@ namespace Toebeans.Skiing
             forward.Normalize();
             Vector3 side = Vector3.Cross(n, forward);
 
-            // Anything pointing into or out of the slope is contact, not travel.
+            // Anything pointing into or out of the slope is contact, not travel — but simply
+            // projecting it away charges the skier for following the terrain. Rolling from a 25°
+            // pitch onto the flat aims the velocity 25° into the ground, and the projection quietly
+            // eats cos(25°) of it: a free 10% off the top of every runout. Skis do not slam into
+            // the hill, they follow it, so the direction changes and the magnitude is kept. Real
+            // impacts still cost — that is Land(), which only runs on an actual touchdown.
             Vector3 planar = Vector3.ProjectOnPlane(_velocity, n);
+            float carried = _velocity.magnitude;
+            if (planar.sqrMagnitude > 1e-6f && carried > 0.01f)
+            {
+                planar = planar.normalized
+                         * Mathf.Lerp(planar.magnitude, carried, terrainFollowRetention);
+            }
+
             float alongSkis = Vector3.Dot(planar, forward);
             float acrossSkis = Vector3.Dot(planar, side);
 

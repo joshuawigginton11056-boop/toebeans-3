@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using Toebeans.ScaleTest;
 using Toebeans.ScaleTest.EditorTools;
 using UnityEditor;
@@ -48,6 +49,78 @@ namespace Toebeans.Skiing.EditorTools
 
         [MenuItem("Tools/Toebeans/Set Up Skier %#k", true)]
         static bool SetUpValidate() => !Application.isPlaying;
+
+        /// <summary>
+        /// Pushes the script's current tuning values onto the skier already in the scene.
+        ///
+        /// Unity serialises component values into the scene, so retuning a default in the script
+        /// does nothing to a skier that already exists — you would play the old numbers and
+        /// conclude the change did not work. This is the "actually give me the new tuning" button.
+        /// Scene-specific fields (the model, the input asset, the ground mask, the spawn safety
+        /// net) are deliberately left alone.
+        /// </summary>
+        [MenuItem("Tools/Toebeans/Retune Skier To Script Defaults", false, 11)]
+        public static void RetuneSkier()
+        {
+            SkiController ski = Object.FindAnyObjectByType<SkiController>();
+            if (ski == null)
+            {
+                EditorUtility.DisplayDialog("Retune Skier",
+                    "No skier in the open scene. Run Tools ▸ Toebeans ▸ Set Up Skier first.", "OK");
+                return;
+            }
+
+            Undo.RecordObject(ski, "Retune Skier");
+            int changed = ApplyTuningDefaults(ski);
+            EditorUtility.SetDirty(ski);
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+
+            Debug.Log($"[Skiing] Retuned the skier to the script's defaults ({changed} field(s) changed). " +
+                      "Model, input asset, ground mask and spawn safety net were left as they were.");
+        }
+
+        [MenuItem("Tools/Toebeans/Retune Skier To Script Defaults", true)]
+        static bool RetuneValidate() => !Application.isPlaying;
+
+        /// <summary>Fields that belong to the scene rather than to the feel, and so survive a retune.</summary>
+        static readonly string[] SceneOwnedFields =
+        {
+            "inputActions", "model", "modelYawOffset", "standingHeight", "radius",
+            "groundLayers", "respawnBelowY",
+        };
+
+        static int ApplyTuningDefaults(SkiController ski)
+        {
+            // Read the defaults off a throwaway instance rather than restating them here, so this
+            // cannot drift out of step with the script.
+            var temp = new GameObject("~SkiControllerDefaults") { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                var defaults = temp.AddComponent<SkiController>();
+                int changed = 0;
+
+                foreach (FieldInfo field in typeof(SkiController)
+                             .GetFields(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    // Fully qualified: `using System` would make UnityEngine.Object ambiguous here.
+                    if (System.Array.IndexOf(SceneOwnedFields, field.Name) >= 0)
+                        continue;
+
+                    object fresh = field.GetValue(defaults);
+                    if (Equals(field.GetValue(ski), fresh))
+                        continue;
+
+                    field.SetValue(ski, fresh);
+                    changed++;
+                }
+
+                return changed;
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
+            }
+        }
 
         // ---------------------------------------------------------------- the skier
 

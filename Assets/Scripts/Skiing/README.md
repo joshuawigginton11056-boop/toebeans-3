@@ -17,6 +17,11 @@ It borrows the character from `Assets/Prefabs/Player.prefab` if the scale-test r
 built one, and falls back to the grey mannequin otherwise. The walking player is disabled rather
 than deleted; re-enable it in the Hierarchy to go back to the scale test.
 
+> **After pulling a retune:** Unity stores component values in the scene, so changing a default in
+> `SkiController.cs` does nothing to a skier that already exists — you would play the old numbers
+> and conclude the change did not work. Run **Tools ▸ Toebeans ▸ Retune Skier To Script Defaults**
+> to push the script's values onto it. Your model, input asset and ground mask survive.
+
 ## Controls
 
 | Input | Action |
@@ -58,6 +63,27 @@ Two rules are kept as rules, because they are decisions rather than physics: ste
 scales with speed but floors above zero (otherwise a sideways stop is a softlock), and the jump is
 hold-to-charge with a lockout on touchdown (otherwise it pogos).
 
+### Speed on the flat
+
+Worth understanding before touching the drag, because it is the one place the physics is
+counter-intuitive: **whatever speed the drag settles you at on a pitch, arriving on a flat at that
+speed costs you exactly the gravity you had been gaining.** Terminal velocity is the point where
+drag equals the pull of the hill, so a skier pinned at terminal who rolls onto the flat decelerates
+at the full slope acceleration. That is real, not a bug, and no drag curve can dodge it.
+
+The lever is to stop the player living at terminal speed. Gravity is therefore kept near real
+(-11): running it hot forces the drag to run hot to hold the speed down, and *that* is what turns
+every runout into a wall. Keep gravity modest, keep the drag gentle enough that ordinary runs sit
+well below the ceiling, and flats open up on their own. Tucking cuts the quadratic term to well
+under half, so `W` roughly doubles how far a runout carries you — which is exactly what tucking is
+for.
+
+Separately, `terrainFollowRetention` stops a *grounded* rollover from charging you for following
+the terrain. Projecting the velocity onto each new surface is correct for contact but wrong for
+momentum: dropping from a 25° pitch onto the flat would silently eat cos(25°) — a free 10% — every
+time the ground levelled out. At 1 the skis keep their speed and only change direction. Landings
+from the air are a different thing and still cost, via `landingRetention`.
+
 ### What was deliberately dropped
 
 The old TypeScript sim modelled the run as `distance` down a rail plus a `lateral` offset, with a
@@ -72,13 +98,15 @@ Everything is on the `SkiController` component, in the order you will want to re
 
 | Field | What it changes |
 | --- | --- |
-| `gravity` | Overall pace. Running hotter than -9.81 makes the mountain feel steeper without re-sculpting it |
+| `gravity` | Overall pace. Raise it and you must raise the drag with it, which costs you the flats — see above |
+| `glideDrag` / `tuckDrag` | Terminal speed standing up vs tucked, and how far a flat runout carries |
+| `snowFriction` | What eventually stops you on a dead flat. Keep it small or runouts die |
 | `edgeGrip` | The whole ski feel. High carves on rails, low slides around like a sled. Also sets how long a sideways landing slips |
 | `carveRedirect` | How rewarding a good turn is. 0 makes every turn pure braking |
-| `glideDrag` / `tuckDrag` | Terminal speed standing up vs tucked — how much `W` is worth |
+| `terrainFollowRetention` | 1 = momentum survives a rollover onto a flatter pitch. Lower it only if the skis feel like they ignore the terrain |
 | `turnRate` | How quickly the skis come round |
 | `groundStick` | Raise to stop popping off every bump, lower to get air off lips |
-| `maxSpeed` | Hard ceiling, m/s. 26 is about 94 km/h |
+| `maxSpeed` | Hard ceiling, m/s. 30 is about 108 km/h |
 
 Camera feel lives on `SkiCameraRig`. `baseFov`/`maxFov` is the single biggest speed cue there is —
 if the run feels slow, widen the FOV before touching the physics.
