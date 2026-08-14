@@ -25,6 +25,7 @@ namespace LavaFlow.EditorTools
             // buttons end up several screens down, where nobody finds them.
             DrawMaterialWarnings(generator);
             DrawStats(generator);
+            DrawPondJoin(generator);
             DrawActions(generator);
 
             EditorGUILayout.Space();
@@ -236,6 +237,45 @@ namespace LavaFlow.EditorTools
             else
             {
                 EditorGUILayout.LabelField("Route", "not solved");
+            }
+        }
+
+        /// <summary>
+        /// Says whether the river is actually joined to its pond, and when it is not, why.
+        ///
+        /// Silence would be the wrong answer. A river with a pond set but out of reach of it looks
+        /// identical to one where the feature is not working: the mesh still ends wherever the last
+        /// waypoint was left, over the rim.
+        /// </summary>
+        static void DrawPondJoin(LavaFlowGenerator generator)
+        {
+            LavaFlowGenerator.PondJoinStatus status = generator.GetPondJoinStatus();
+            if (!status.HasPond) return;
+
+            string pondName = generator.Pond != null ? generator.Pond.name : "the pond";
+
+            if (status.Snapped)
+            {
+                EditorGUILayout.LabelField("Pours into", string.Format(
+                    "{0}, mouth {1:F1} m wide", pondName, status.MouthWidth));
+                return;
+            }
+
+            if (status.Gap > 0f)
+            {
+                EditorGUILayout.HelpBox(string.Format(
+                    "The route stops {0:F0} m short of {1} and is not joined to it. Raise Pond " +
+                    "Reach past that, drag the last waypoint closer, or aim the end of the route " +
+                    "at the pool — the reach is measured along the way the river is heading.",
+                    status.Gap, pondName), MessageType.Warning);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(string.Format(
+                    "The route runs {0:F0} m past {1} and is not joined to it. That is further " +
+                    "beyond the pool than the join will reel a river back; trim the route nearer " +
+                    "the pond, or turn Snap To Pond off if it is meant to run on somewhere else.",
+                    -status.Gap, pondName), MessageType.Warning);
             }
         }
 

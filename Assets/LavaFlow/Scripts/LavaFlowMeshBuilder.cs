@@ -138,23 +138,37 @@ namespace LavaFlow
                     }
 
                     // A flow moving fast down a steep face has no time to freeze a bank at its
-                    // margin, so the levees fade out exactly where the cascades are.
-                    float leveeScale = Mathf.Lerp(1f, 0.3f, st.SlopeNorm);
+                    // margin, so the levees fade out exactly where the cascades are — and one that
+                    // has reached a pool has nothing left for a bank to stand on at all.
+                    float pond = st.PondBlend;
+                    float leveeScale = Mathf.Lerp(1f, 0.3f, st.SlopeNorm) * (1f - pond);
                     float crest = s.leveeHeight * leveeScale;
-                    float fill = Mathf.Max(0.05f, crest - s.channelDepth * leveeScale);
+                    float depth = s.channelDepth * leveeScale;
+
+                    // Shared with the solver, which aims the join at this exact height. Two copies
+                    // of the formula would leave the river hovering centimetres over the pond.
+                    float fill = LavaFlowPathSolver.SurfaceLift(s, st.SlopeNorm, pond);
 
                     for (int j = 0; j < lateral; j++)
                     {
                         float lat = Lat(j, lateral);
                         Across[i, j] = lat * st.HalfWidth;
 
-                        float molten = MoltenAt(s, st, fill, lat);
+                        float molten = MoltenAt(s, st, fill, depth, lat);
                         MoltenHeight[i, j] = molten;
 
                         int fromCenter = Mathf.Abs(j - Center);
-                        SurfaceHeight[i, j] = fromCenter <= ChannelHalf
-                            ? molten
-                            : BankAt(s, st, crest, fill, fromCenter, j);
+                        if (fromCenter <= ChannelHalf)
+                        {
+                            SurfaceHeight[i, j] = molten;
+                        }
+                        else
+                        {
+                            // Out over the pool the whole cross-section is lava: the banks flatten
+                            // into it instead of running on as a rim standing above the surface.
+                            float bank = BankAt(s, st, crest, fill, fromCenter, j);
+                            SurfaceHeight[i, j] = Mathf.Lerp(bank, molten, pond);
+                        }
                     }
                 }
             }
@@ -189,6 +203,11 @@ namespace LavaFlow
                 // Lava comes out of the ground molten and takes a while to skin over. A flow that
                 // is continuing another one has not just come out of the ground, though, and the
                 // bright patch would sit at the join like a join.
+                // Arriving in a pool, the crust rafts are pulled apart and carried off as the flow
+                // spreads, so the mouth is open lava. The pond clears its own crust to match: the
+                // two meeting anywhere but at open lava is what shows the seam.
+                coverage *= 1f - 0.85f * st.PondBlend;
+
                 if (Path.ContinuesUpstream) return coverage;
 
                 return coverage * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((st.Distance - 3f) / 14f));
@@ -221,13 +240,13 @@ namespace LavaFlow
             }
 
             /// <summary>Height of the lava surface, bulging slightly in the middle and rolling as it goes.</summary>
-            static float MoltenAt(LavaFlowSettings s, FlowStation st, float fill, float lat)
+            static float MoltenAt(LavaFlowSettings s, FlowStation st, float fill, float depth, float lat)
             {
                 float inner = Mathf.Max(0.05f, 1f - s.leveeFraction);
                 float t = Mathf.Clamp01(Mathf.Abs(lat) / inner);
 
                 // The middle of a channel outruns its edges and stands a little proud of them.
-                float bulge = s.channelDepth * 0.18f * (1f - t * t);
+                float bulge = depth * 0.18f * (1f - t * t);
 
                 float roll = FlowNoise.Fbm(st.Distance * 0.22f, lat * 2.3f + 13.7f, s.seed + 211)
                              * s.moltenTurbulence * 0.16f;
@@ -588,7 +607,11 @@ namespace LavaFlow
         {
             int n = path.Count;
             CapEnd(buf, s, surf, 0, -path.Stations[0].Forward, LavaSlot.Molten, -1f);
-            CapEnd(buf, s, surf, n - 1, path.Stations[n - 1].Forward, LavaSlot.CrustDark, 1f);
+
+            // A flow ending in a pool has no cooled snout. The far side of that wall is under the
+            // pond's own lava, and dark crust there reads as a slab of rock sitting in the pool.
+            LavaSlot toe = path.EndsInPond ? LavaSlot.Molten : LavaSlot.CrustDark;
+            CapEnd(buf, s, surf, n - 1, path.Stations[n - 1].Forward, toe, 1f);
         }
 
         /// <summary>
@@ -765,6 +788,10 @@ namespace LavaFlow
                 int side = rng.Chance(0.5f) ? -1 : 1;
                 int j = c + side * rng.Range(surf.ChannelHalf, c + 1);
                 j = Mathf.Clamp(j, 0, surf.Lateral - 1);
+
+                // Boulders ride the banks, and out over the pool there are no banks to ride: they
+                // would sit on the surface of the lake looking like they were floating.
+                if (rng.Value() < path.Stations[i].PondBlend) continue;
 
                 Vector3 seat = surf.P(i, j, surf.SurfaceHeight[i, j]);
                 Vector3 normal = path.Normal[i, j];

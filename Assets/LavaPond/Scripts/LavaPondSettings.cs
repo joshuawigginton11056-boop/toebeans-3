@@ -1,7 +1,47 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LavaPond
 {
+    /// <summary>
+    /// A place where a river pours in. Written by the Lava Flow that feeds the pool rather than
+    /// authored by hand, and it changes three things about the shore it lands on: the rock rim is
+    /// notched down instead of damming the river, the shore lip stops walling the mouth off, and
+    /// the crust is swept away in a fan in front of it, because lava arriving there has had no
+    /// time to skin over.
+    ///
+    /// It never moves the pond's outline or its footprint, and it never touches a single random
+    /// number: a pond with no inlets builds exactly the mesh it always did, and adding one leaves
+    /// every plate, boulder and bubble outside the mouth where it was.
+    ///
+    /// Angles are in the pond's own local space, measured the way the shoreline measures them:
+    /// <c>Atan2(z, x)</c>, so 0 is local +X. The generator converts before writing any of this.
+    /// </summary>
+    [System.Serializable]
+    public struct PondInlet
+    {
+        /// <summary>Identifies the flow that owns this inlet, so it updates its own entry and no
+        /// other. Zero for one placed by hand.</summary>
+        public int owner;
+
+        /// <summary>Where on the shore the river arrives, in degrees.</summary>
+        public float angleDeg;
+
+        /// <summary>Half the width of the river's mouth, in the pond's local units.</summary>
+        public float halfWidth;
+
+        /// <summary>How far the arriving lava keeps the crust open, in the pond's local units.</summary>
+        public float reach;
+
+        public bool Matches(PondInlet other)
+        {
+            return owner == other.owner
+                   && Mathf.Abs(Mathf.DeltaAngle(angleDeg, other.angleDeg)) < 0.05f
+                   && Mathf.Abs(halfWidth - other.halfWidth) < 0.01f
+                   && Mathf.Abs(reach - other.reach) < 0.01f;
+        }
+    }
+
     /// <summary>How the generated UVs are laid out.</summary>
     public enum PondUVMode
     {
@@ -90,6 +130,22 @@ namespace LavaPond
         [Tooltip("Random height noise on the rim.")]
         [Range(0f, 1f)] public float rimRoughness = 0.6f;
 
+        [Header("Inlets")]
+        [Tooltip("Where rivers pour in. A Lava Flow with this pond set as the pool it runs into " +
+                 "keeps its own entry here and updates it whenever the route moves, so there is " +
+                 "normally nothing to edit by hand.")]
+        public List<PondInlet> inlets = new List<PondInlet>();
+
+        [Tooltip("How far past the mouth the crust stays broken up, as a multiple of the river's " +
+                 "width. Lava arriving from a river is the hottest thing in the pool and takes a " +
+                 "while to skin over, so a fan of open lava reaches out from the mouth.")]
+        [Range(0f, 6f)] public float inletMeltReach = 2.2f;
+
+        [Tooltip("How deep the rim is notched where a river runs in, as a fraction of its height. " +
+                 "1 cuts it to the level of the lava. The outer edge of the rim never moves, so " +
+                 "the pond still sits flush on the ground around it.")]
+        [Range(0f, 1f)] public float inletRimCut = 1f;
+
         [Header("Body")]
         [Tooltip("How far the solid block extends below the crust, so the asset is not a paper sheet.")]
         [Range(0f, 10f)] public float depth = 1.6f;
@@ -157,7 +213,9 @@ namespace LavaPond
 
         public LavaPondSettings Clone()
         {
-            return (LavaPondSettings)MemberwiseClone();
+            var copy = (LavaPondSettings)MemberwiseClone();
+            copy.inlets = inlets != null ? new List<PondInlet>(inlets) : new List<PondInlet>();
+            return copy;
         }
     }
 }

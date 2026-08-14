@@ -19,6 +19,7 @@ namespace LavaPond.EditorTools
 
             EditorGUILayout.Space();
             DrawStats(generator);
+            DrawInlets(generator);
 
             EditorGUILayout.Space();
             using (new EditorGUILayout.HorizontalScope())
@@ -84,6 +85,39 @@ namespace LavaPond.EditorTools
             float crust = generator.CrustCoverage * 100f;
             EditorGUILayout.LabelField("Crust cover", crust.ToString("F0") + "% skinned over, " +
                                        (100f - crust).ToString("F0") + "% open lava");
+        }
+
+        /// <summary>
+        /// The rivers feeding the pool, and a way out when one of them leaves an entry behind.
+        ///
+        /// Inlets are written by the rivers rather than authored here, and they are saved with the
+        /// scene, so a river deleted while the scene was closed can leave the rim notched for a
+        /// mouth that no longer exists. Clearing them is safe: every river still pointing at this
+        /// pond writes its own back on its next rebuild.
+        /// </summary>
+        static void DrawInlets(LavaPondGenerator generator)
+        {
+            var inlets = generator.Settings.inlets;
+            int count = inlets != null ? inlets.Count : 0;
+            if (count == 0) return;
+
+            EditorGUILayout.LabelField("Fed by", count == 1 ? "1 river" : count + " rivers");
+
+            float scale = generator.WorldScale;
+            for (int i = 0; i < count; i++)
+            {
+                EditorGUILayout.LabelField("   mouth " + (i + 1), string.Format(
+                    "{0:F0}° around the shore, {1:F1} m wide",
+                    inlets[i].angleDeg, inlets[i].halfWidth * 2f * scale));
+            }
+
+            if (GUILayout.Button("Forget Inlets"))
+            {
+                Undo.RecordObject(generator, "Clear Lava Pond Inlets");
+                inlets.Clear();
+                generator.Generate();
+                EditorUtility.SetDirty(generator);
+            }
         }
 
         /// <summary>

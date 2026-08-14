@@ -55,6 +55,90 @@ namespace LavaFlow
 
         /// <summary>Half the channel's width here, in metres.</summary>
         public float HalfWidth;
+
+        /// <summary>
+        /// How much this cross-section belongs to the pool the flow runs into rather than to the
+        /// river: 0 anywhere upstream, 1 once it is over the lava. The banks fade out across it,
+        /// the channel loses its depth and the surface settles onto the pond's own lava — which is
+        /// what turns a ribbon stopping at a shoreline into a river pouring into a lake.
+        /// </summary>
+        public float PondBlend;
+    }
+
+    /// <summary>
+    /// The pool a flow runs into, in world space. Worked out by the generator, which is the only
+    /// part that can see the pond; the solver takes it as plain numbers so it stays pure maths.
+    ///
+    /// Note what is *not* here: the route. By the time the solver sees this, the centreline already
+    /// ends inside the pond, because the generator put the entry in as control points and let the
+    /// ordinary resampler draw it. Cutting the route about down here instead — grafting a straight
+    /// run onto a curve — leaves a kink at the shoreline, and the width clamp that stops a ribbon
+    /// folding on a bend reads that kink as a hairpin and pinches the channel shut at exactly the
+    /// point everyone is looking at.
+    /// </summary>
+    public sealed class FlowOutfall
+    {
+        /// <summary>Where the route crosses the edge of the pond's lava.</summary>
+        public Vector3 ShorePoint;
+
+        /// <summary>Unit vector, flat, pointing on into the pool.</summary>
+        public Vector3 Inward;
+
+        /// <summary>Height of the pond's lava surface at the mouth.</summary>
+        public float SurfaceY;
+
+        /// <summary>Metres before the shore over which the river settles into the pool.</summary>
+        public float Settle = 16f;
+
+        /// <summary>How much wider the channel spreads at the mouth. Lava that has lost its slope
+        /// has nothing pushing it on and fans out.</summary>
+        public float MouthFlare = 1.35f;
+
+        public bool IsValid { get { return Inward.sqrMagnitude > 1e-6f; } }
+
+        /// <summary>How far past the shoreline a point is, in metres. Negative upstream of it.</summary>
+        public float DistancePastShore(Vector3 world)
+        {
+            Vector3 d = world - ShorePoint;
+            d.y = 0f;
+            return Vector3.Dot(d, Inward.normalized);
+        }
+
+        /// <summary>
+        /// How much of the pool each point of a route belongs to, 0 to 1, measured as distance
+        /// travelled along the route past the shoreline.
+        ///
+        /// Along the route rather than across the shoreline, and that is not a detail. A half-plane
+        /// test says "past the shore" of anything on the pond's side of it, including a stretch of
+        /// river hundreds of metres upstream that happens to swing that way before turning back —
+        /// which would settle that stretch onto the pond's surface, in the middle of the hillside.
+        /// A river that wanders on its way down is normal; measuring along it cannot be fooled.
+        /// </summary>
+        public float[] BlendAlong(IList<Vector3> centers)
+        {
+            int n = centers.Count;
+            var blend = new float[n];
+            if (n == 0) return blend;
+
+            var travelled = new float[n];
+            for (int i = 1; i < n; i++)
+                travelled[i] = travelled[i - 1] + Vector3.Distance(centers[i - 1], centers[i]);
+
+            // The last crossing is the one that matters: it is the one the flow ends past.
+            float shoreAt = travelled[n - 1];
+            for (int i = n - 1; i >= 0; i--)
+            {
+                if (DistancePastShore(centers[i]) >= 0f) continue;
+                shoreAt = travelled[i];
+                break;
+            }
+
+            float ramp = Mathf.Max(0.5f, Settle);
+            for (int i = 0; i < n; i++)
+                blend[i] = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((travelled[i] - shoreAt + ramp) / ramp));
+
+            return blend;
+        }
     }
 
     /// <summary>
@@ -85,6 +169,9 @@ namespace LavaFlow
         /// real source has, both of which would read as a seam at every join.
         /// </summary>
         public bool ContinuesUpstream;
+
+        /// <summary>True when this route ends in a pool of lava rather than on the ground.</summary>
+        public bool EndsInPond;
 
         public int Count { get { return Stations != null ? Stations.Length : 0; } }
 
@@ -118,9 +205,12 @@ namespace LavaFlow
         /// <param name="controlPointsWorld">Authored route for the non-downhill modes.</param>
         /// <param name="entryHalfWidth">Half width the lava arrives at, in metres, when this flow
         /// continues another one. Zero or less means it starts at its own source.</param>
+        /// <param name="outfall">The pool this flow ends in, or null when it ends on the ground.
+        /// The route is expected to already run into it; this settles the flow onto its surface.</param>
         public static FlowPath Solve(LavaFlowSettings s, IGroundSampler ground, Vector3 origin,
                                      Vector3 startHeading, Matrix4x4 worldToLocal,
-                                     IList<Vector3> controlPointsWorld, float entryHalfWidth = 0f)
+                                     IList<Vector3> controlPointsWorld, float entryHalfWidth = 0f,
+                                     FlowOutfall outfall = null)
         {
             s = s ?? new LavaFlowSettings();
             if (ground == null) ground = new FlatGround(origin.y);
@@ -141,12 +231,25 @@ namespace LavaFlow
 
             if (centers.Count < 2) return new FlowPath { Stations = new FlowStation[0], Lateral = 0 };
 
-            Drape(centers, ground, s.groundFollow);
+            if (outfall != null && !outfall.IsValid) outfall = null;
+
+            // How much of each point is pool rather than river. Worked out before draping, because
+            // draping is the first thing it changes.
+            float[] pondBlend = outfall != null ? outfall.BlendAlong(centers) : null;
+
+            Drape(centers, ground, s.groundFollow, pondBlend);
             SmoothPositions(centers, 2);
+
+            if (outfall != null)
+            {
+                SmoothIntoPond(centers, pondBlend, 8);
+                SettleIntoPond(s, centers, pondBlend, outfall);
+            }
 
             var path = new FlowPath();
             path.ContinuesUpstream = entryHalfWidth > 0f;
-            path.Stations = BuildStations(s, ground, centers);
+            path.EndsInPond = outfall != null;
+            path.Stations = BuildStations(s, ground, centers, pondBlend);
 
             // Meander is for a route nobody drew: it stops an automatic river reading as a canal.
             // On an authored route it fights the person drawing it, swinging the channel off the
@@ -157,13 +260,13 @@ namespace LavaFlow
             // width the river actually wants rather than to fit the width a sharp corner had
             // already forced it down to. Then the frames are rebuilt on the eased centreline and
             // the widths redone, this time with the clamp left in as a safety net.
-            AssignWidths(s, path.Stations, entryHalfWidth, false);
+            AssignWidths(s, path.Stations, entryHalfWidth, false, outfall);
             if (RoundTightCorners(path.Stations))
                 RebuildFrames(s, ground, path.Stations);
 
-            AssignWidths(s, path.Stations, entryHalfWidth, true);
+            AssignWidths(s, path.Stations, entryHalfWidth, true, outfall);
 
-            SampleGrid(s, ground, path, worldToLocal);
+            SampleGrid(s, ground, path, worldToLocal, outfall);
 
             for (int i = 0; i < path.Stations.Length; i++)
             {
@@ -432,16 +535,185 @@ namespace LavaFlow
                            (-p0 + 3f * p1 - 3f * p2 + p3) * t3);
         }
 
+        // ------------------------------------------------------------------ pond outfall
+
+        /// <summary>
+        /// Eases the last stretch, in proportion to how much of the pool it belongs to.
+        ///
+        /// Lava spreading into a lake has lost the momentum that made it follow every turn of the
+        /// gully above, so a mouth that still wiggles reads as wrong even when nothing is broken.
+        /// It is also the belt to the braces on width: the mouth is held from ever narrowing, which
+        /// takes away the clamp that would otherwise stop a wide ribbon folding on a tight bend, so
+        /// there had better not be a tight bend left down there. The ends are pinned, so the toe
+        /// stays exactly where the entry put it.
+        /// </summary>
+        static void SmoothIntoPond(List<Vector3> centers, float[] blend, int passes)
+        {
+            for (int pass = 0; pass < passes; pass++)
+            {
+                for (int i = 1; i < centers.Count - 1; i++)
+                {
+                    if (blend[i] <= 0f) continue;
+                    Vector3 mean = (centers[i - 1] + centers[i] * 2f + centers[i + 1]) * 0.25f;
+                    centers[i] = Vector3.Lerp(centers[i], mean, blend[i]);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Drops the settled part of the route so the lava surface lands exactly on the pond's.
+        ///
+        /// The centreline carries ground heights at this point and the mesh stacks the surface
+        /// offset and the channel's own fill on top of them, so both have to come back off the
+        /// target. A few centimetres out here is a river hovering over the pool.
+        /// </summary>
+        static void SettleIntoPond(LavaFlowSettings s, List<Vector3> centers, float[] blend,
+                                   FlowOutfall outfall)
+        {
+            float bed = outfall.SurfaceY - s.surfaceOffset - SurfaceLift(s, 0f, 1f);
+
+            for (int i = 0; i < centers.Count; i++)
+            {
+                if (blend[i] <= 0f) continue;
+                Vector3 p = centers[i];
+                p.y = Mathf.Lerp(p.y, bed, blend[i]);
+                centers[i] = p;
+            }
+        }
+
+        /// <summary>
+        /// Rewrites a route so it ends inside the pond: everything past the shoreline is dropped and
+        /// the crossing and the toe are put on in its place, both along <paramref name="inward"/>.
+        ///
+        /// The result is fed back through the ordinary resampler as control points, which is the
+        /// whole point of doing it here rather than on the solved centreline. Cutting a curve and
+        /// grafting a straight run onto it leaves a kink at the join, and a kink is read further
+        /// down as a hairpin: the clamp that stops a wide ribbon folding on a bend cannot tell one
+        /// from the other, and it pinches the channel shut in the few metres at the mouth.
+        ///
+        /// <paramref name="entryIndex"/> is the first point of the route that is over the lava, or
+        /// the last point when the route stops short. Trimming walks back from there rather than
+        /// forward from the start: a river that wanders can put an early stretch on the pond's side
+        /// of the shoreline while still being hundreds of metres upstream, and cutting there would
+        /// throw the whole river away and replace it with one long leg running backwards.
+        /// </summary>
+        public static List<Vector3> BuildPondEntry(IList<Vector3> route, int entryIndex,
+                                                   Vector3 shorePoint, Vector3 inward,
+                                                   float tuck, float spacing, out Vector3 usedInward)
+        {
+            var trimmed = new List<Vector3>();
+            Vector3 flatInward = Flatten(inward).normalized;
+            usedInward = flatInward;
+            if (route == null || route.Count == 0) return trimmed;
+            int last = Mathf.Clamp(entryIndex, 1, route.Count) - 1;
+            for (int i = 0; i <= last; i++) trimmed.Add(route[i]);
+
+            // Back off any tail that is already past the shoreline, or so close to the crossing
+            // that it would leave two control points on top of each other.
+            float minGap = Mathf.Max(0.5f, spacing * 0.5f);
+            while (trimmed.Count > 0)
+            {
+                Vector3 d = trimmed[trimmed.Count - 1] - shorePoint;
+                d.y = 0f;
+                if (Vector3.Dot(d, flatInward) < -minGap) break;
+                trimmed.RemoveAt(trimmed.Count - 1);
+            }
+
+            // A route drawn wholly over the pond leaves nothing to approach along. Give it a short
+            // run-up rather than letting the last stations double back on themselves.
+            if (trimmed.Count == 0)
+                trimmed.Add(shorePoint - flatInward * Mathf.Max(4f, spacing * 3f));
+
+            // Never shorter than a station: a toe that lands a few centimetres past the shoreline
+            // leaves the mesh a sliver of a final cross-section, and the direction the flow is
+            // pointing there is then measured across almost nothing, which hooks the last quad.
+            float tail = Mathf.Max(Mathf.Max(0.1f, spacing), tuck);
+
+            // Grade the approach down to the length of the tuck before adding it.
+            //
+            // The resampler runs a uniform Catmull-Rom through these points, and a uniform spline
+            // takes its tangent at a point from its *neighbours*, not from the segment it is
+            // drawing. Hand it a forty-metre leg followed by a half-metre one and the tangent at
+            // the join is eighty times the length of the segment it governs: the curve shoots past
+            // the end, turns round and comes back. That is a mesh folded end over end, and it was
+            // found by a random sweep rather than by looking — a route can be perfectly smooth and
+            // still trigger it, because it is the *ratio* between neighbouring legs that does it,
+            // not any corner in the line. Halving the gap a few times keeps that ratio near two.
+            Vector3 lastKept = trimmed[trimmed.Count - 1];
+
+            // The entry carries the route's own height, not the pond's.
+            //
+            // A river arriving twenty metres above the pool would otherwise have that whole drop
+            // crammed into the single control leg that reaches the shoreline: the resampler walks
+            // these points by arc length in three dimensions, so a leg that falls twenty metres
+            // while advancing one bunches a dozen cross-sections into that metre and the flow
+            // visibly staggers there. The descent is not this function's business — the solver
+            // brings the surface down onto the lava across the whole settle length, which is what
+            // that setting is for.
+            shorePoint.y = lastKept.y;
+
+            // The way in is the way the river is actually travelling when it gets there: from the
+            // last point still on the drawn route, to the crossing. Normally that is the heading
+            // already passed in — the crossing is found along it — but not when the drawn route
+            // overshot and several points had to come off, because then the river is arriving from
+            // somewhere the original heading knows nothing about. Taking the bridge's own direction
+            // makes the approach, the crossing and the run under the lava one straight line, which
+            // is the only shape with no corner anywhere in it for the width clamp to find.
+            Vector3 bridgeVector = Flatten(shorePoint - lastKept);
+            if (bridgeVector.sqrMagnitude > 1e-4f) flatInward = bridgeVector.normalized;
+            usedInward = flatInward;
+
+            float gap = Vector3.Dot(Flatten(shorePoint - lastKept), flatInward);
+
+            if (gap > tail * 2.5f)
+            {
+                var leads = new List<float>();
+                for (float d = tail * 2f; d < gap * 0.6f && leads.Count < 6; d *= 2f) leads.Add(d);
+
+                // Placed along the line already being bridged rather than out on the entry ray.
+                // They exist to even out the spacing and nothing else; put them anywhere off that
+                // line and they put a bend in the approach instead of taking one out.
+                float bridge = Vector3.Distance(lastKept, shorePoint);
+                for (int i = leads.Count - 1; i >= 0; i--)
+                {
+                    float t = bridge > 1e-4f ? Mathf.Clamp01(leads[i] / bridge) : 0f;
+                    trimmed.Add(Vector3.Lerp(shorePoint, lastKept, t));
+                }
+            }
+
+            trimmed.Add(shorePoint);
+            trimmed.Add(shorePoint + flatInward * tail);
+            return trimmed;
+        }
+
+        /// <summary>
+        /// How far above the ground sample the lava surface sits, before the bulge and the roll.
+        /// The mesh builder measures its channel from this and the solver aims the pond join at it,
+        /// so the two have to be the same number.
+        /// </summary>
+        public static float SurfaceLift(LavaFlowSettings s, float slopeNorm, float pondBlend)
+        {
+            // A flow moving fast down a steep face has no time to freeze a bank at its margin, and
+            // one that has reached a pool has nothing left to hold a bank up at all.
+            float scale = Mathf.Lerp(1f, 0.3f, Mathf.Clamp01(slopeNorm)) * (1f - Mathf.Clamp01(pondBlend));
+            return Mathf.Max(0.05f, s.leveeHeight * scale - s.channelDepth * scale);
+        }
+
         // ------------------------------------------------------------------ draping
 
-        static void Drape(List<Vector3> pts, IGroundSampler ground, float follow)
+        static void Drape(List<Vector3> pts, IGroundSampler ground, float follow, float[] pondBlend)
         {
             follow = Mathf.Clamp01(follow);
             for (int i = 0; i < pts.Count; i++)
             {
                 Vector3 p, n;
                 if (!ground.Sample(pts[i], out p, out n)) continue;
-                pts[i] = Vector3.Lerp(pts[i], p, follow);
+
+                // The last stretch is over lava, not over ground. The terrain under a pond is
+                // whatever the pond was dropped onto and is usually metres out; draping onto it
+                // would drag the river back down through the pool it is joining.
+                float f = pondBlend != null ? follow * (1f - pondBlend[i]) : follow;
+                pts[i] = Vector3.Lerp(pts[i], p, f);
             }
         }
 
@@ -458,7 +730,8 @@ namespace LavaFlow
 
         // ------------------------------------------------------------------ frames
 
-        static FlowStation[] BuildStations(LavaFlowSettings s, IGroundSampler ground, List<Vector3> centers)
+        static FlowStation[] BuildStations(LavaFlowSettings s, IGroundSampler ground,
+                                           List<Vector3> centers, float[] pondBlend)
         {
             int n = centers.Count;
             var stations = new FlowStation[n];
@@ -492,7 +765,8 @@ namespace LavaFlow
                     Right = right,
                     Up = up,
                     Distance = distance,
-                    SlopeNorm = Mathf.Clamp01(slopeAngle / steep)
+                    SlopeNorm = Mathf.Clamp01(slopeAngle / steep),
+                    PondBlend = pondBlend != null ? pondBlend[i] : 0f
                 };
             }
 
@@ -697,7 +971,7 @@ namespace LavaFlow
         // ------------------------------------------------------------------ width
 
         static void AssignWidths(LavaFlowSettings s, FlowStation[] stations, float entryHalfWidth,
-                                 bool limitToCurvature)
+                                 bool limitToCurvature, FlowOutfall outfall)
         {
             int n = stations.Length;
             float cascade = Mathf.Max(0.2f, s.cascadeWidth) * 0.5f;
@@ -710,9 +984,20 @@ namespace LavaFlow
                 float noise = FlowNoise.Signed(stations[i].Distance * 0.06f, 11.7f, s.seed + 401);
                 w *= 1f + noise * s.widthVariation;
 
-                // The last few metres are the toe, where the flow has run out of push and piles up.
-                float toe = Mathf.Clamp01((stations[i].T - 0.94f) / 0.06f);
-                w *= 1f + toe * 0.35f;
+                if (outfall != null)
+                {
+                    // A river running into a lake has nothing pushing it forward any more, so it
+                    // spreads as it arrives. That fan is most of what makes the join read as a
+                    // river feeding the pool rather than as a ribbon that happens to stop there.
+                    w *= Mathf.Lerp(1f, Mathf.Max(1f, outfall.MouthFlare), stations[i].PondBlend);
+                }
+                else
+                {
+                    // The last few metres are the toe, where the flow has run out of push and piles
+                    // up. A flow ending in lava has no toe: it has a mouth, handled above.
+                    float toe = Mathf.Clamp01((stations[i].T - 0.94f) / 0.06f);
+                    w *= 1f + toe * 0.35f;
+                }
 
                 if (continues)
                 {
@@ -742,6 +1027,45 @@ namespace LavaFlow
             }
 
             if (limitToCurvature) LimitWidthToCurvature(stations);
+
+            // Last word, after the curvature clamp: a river must never narrow on its way into a
+            // pool. Everything above can only widen the mouth, but the clamp above cannot — it
+            // exists to stop a wide ribbon folding through itself on a bend, and it does not know
+            // that this particular stretch is a straight run into a lake where there is no bend to
+            // fold on. One clamped station near the mouth and the channel visibly nips shut right
+            // where the eye is, which is the single thing that ruins the join.
+            if (outfall != null) HoldWidthIntoPond(stations);
+        }
+
+        /// <summary>
+        /// Makes the half width non-decreasing from where the flow starts settling into the pool to
+        /// where it ends, so the channel can never nip shut on its way in.
+        ///
+        /// Bounded by what the bend can actually carry, and that bound is what makes this safe to
+        /// do at all. The clamp it is overriding exists to stop a wide ribbon folding its inner
+        /// bank back through itself, and half a width past the turn radius really does fold. So the
+        /// held width stops just short of the radius rather than ignoring it: on the run in under
+        /// the lava, which the entry lays down dead straight, there is no radius and nothing to
+        /// stop, and the mouth simply keeps the width it arrived with. Only a bend the author drew
+        /// right at the shoreline can hold it back, and there the geometry, not the tool, is what
+        /// says no.
+        /// </summary>
+        static void HoldWidthIntoPond(FlowStation[] stations)
+        {
+            const float FoldLimit = 0.95f;
+
+            float carried = 0f;
+            for (int i = 0; i < stations.Length; i++)
+            {
+                if (stations[i].PondBlend <= 0f) continue;
+
+                carried = Mathf.Max(carried, stations[i].HalfWidth);
+
+                // The ends have no bend to measure — RadiusAt needs a station either side.
+                float radius = i > 0 && i < stations.Length - 1 ? RadiusAt(stations, i) : float.MaxValue;
+                float ceiling = radius == float.MaxValue ? float.MaxValue : radius * FoldLimit;
+                stations[i].HalfWidth = Mathf.Max(stations[i].HalfWidth, Mathf.Min(carried, ceiling));
+            }
         }
 
         /// <summary>
@@ -826,7 +1150,8 @@ namespace LavaFlow
         /// slope as steep as a cliff face the two differ by metres, and a cross-section built from
         /// the centreline alone would bury one bank and leave the other hanging in the air.
         /// </summary>
-        static void SampleGrid(LavaFlowSettings s, IGroundSampler ground, FlowPath path, Matrix4x4 worldToLocal)
+        static void SampleGrid(LavaFlowSettings s, IGroundSampler ground, FlowPath path,
+                               Matrix4x4 worldToLocal, FlowOutfall outfall)
         {
             int n = path.Stations.Length;
 
@@ -858,6 +1183,16 @@ namespace LavaFlow
                     // Slerp is a native call, which would stop the solver running outside the player.
                     Vector3 normal = Vector3.Lerp(st.Up, nrm, follow * 0.75f).normalized;
                     if (normal.sqrMagnitude < 0.5f) normal = st.Up;
+
+                    // Over the pool the ground is the wrong thing to follow across the width as
+                    // well as along the route: the far bank would still be draped on terrain and
+                    // the cross-section would arrive at the lava tilted.
+                    if (outfall != null && st.PondBlend > 0f)
+                    {
+                        float bed = outfall.SurfaceY - s.surfaceOffset - SurfaceLift(s, st.SlopeNorm, st.PondBlend);
+                        draped.y = Mathf.Lerp(draped.y, bed, st.PondBlend);
+                        normal = Vector3.Lerp(normal, Vector3.up, st.PondBlend).normalized;
+                    }
 
                     path.Ground[i, j] = worldToLocal.MultiplyPoint3x4(draped + normal * s.surfaceOffset);
                     path.Normal[i, j] = worldToLocal.MultiplyVector(normal).normalized;

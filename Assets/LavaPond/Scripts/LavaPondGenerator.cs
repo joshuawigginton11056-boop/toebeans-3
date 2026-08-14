@@ -33,8 +33,154 @@ namespace LavaPond
         Mesh _mesh;
         VentInfo _vent;
         float _crustCoverage;
+        LavaPondMeshBuilder.PondShore _shore;
+        int _shoreSeed = int.MinValue;
+        float _shoreRadius = -1f;
+        float _shoreIrregularity = -1f;
 
         public LavaPondSettings Settings { get { return settings; } }
+
+        /// <summary>
+        /// The pond's outline, re-rolled only when a setting that shapes it changes. Everything
+        /// asking where the edge of the lava is goes through here rather than assuming a circle of
+        /// <c>radius</c>: at the default irregularity the two are metres apart.
+        /// </summary>
+        public LavaPondMeshBuilder.PondShore Shore
+        {
+            get
+            {
+                if (_shore == null || _shoreSeed != settings.seed ||
+                    _shoreRadius != settings.radius || _shoreIrregularity != settings.shoreIrregularity)
+                {
+                    _shore = LavaPondMeshBuilder.CreateShore(settings);
+                    _shoreSeed = settings.seed;
+                    _shoreRadius = settings.radius;
+                    _shoreIrregularity = settings.shoreIrregularity;
+                }
+                return _shore;
+            }
+        }
+
+        /// <summary>Metres in the world per metre in the pond's own space.</summary>
+        public float WorldScale
+        {
+            get
+            {
+                Vector3 s = transform.lossyScale;
+                return Mathf.Max(0.0001f, Mathf.Max(Mathf.Abs(s.x), Mathf.Abs(s.z)));
+            }
+        }
+
+        /// <summary>True when a world-space point is over the lava rather than outside the shore.</summary>
+        public bool ContainsWorld(Vector3 worldPoint)
+        {
+            return LavaPondMeshBuilder.Contains(Shore, transform.InverseTransformPoint(worldPoint));
+        }
+
+        /// <summary>
+        /// Where a straight run from <paramref name="from"/> heading <paramref name="direction"/>
+        /// crosses the edge of the lava, and the height of the lava surface there. This is what a
+        /// river ending in the pond aims its last stretch at.
+        /// </summary>
+        public bool TryGetShoreCrossing(Vector3 from, Vector3 direction, out Vector3 point, out float surfaceY)
+        {
+            point = from;
+            surfaceY = transform.position.y;
+
+            Vector3 a = transform.InverseTransformPoint(from);
+            Vector3 dir = transform.InverseTransformDirection(direction);
+
+            Vector3 hit;
+            if (!LavaPondMeshBuilder.TryCrossShore(Shore, a, dir, out hit)) return false;
+
+            hit.y = LavaPondMeshBuilder.CrustSurfaceY(settings, hit.x, hit.z);
+            point = transform.TransformPoint(hit);
+            surfaceY = LavaSurfaceWorldY(point);
+            return true;
+        }
+
+        /// <summary>World height of the molten surface under a world-space point.</summary>
+        public float LavaSurfaceWorldY(Vector3 worldPoint)
+        {
+            Vector3 p = transform.InverseTransformPoint(worldPoint);
+            p.y = LavaPondMeshBuilder.LavaSurfaceY(settings, p.x, p.z);
+            return transform.TransformPoint(p).y;
+        }
+
+        /// <summary>
+        /// Records where a river pours in, in the pond's own terms. Each flow owns one entry, keyed
+        /// by <paramref name="owner"/>, so several rivers can feed one pool and each updates only
+        /// its own.
+        ///
+        /// Returns true when something actually changed, and leaves rebuilding to the caller: a
+        /// river re-solves on every inspector keystroke, and a pond that rebuilt each time whether
+        /// it needed to would drag the scene down and leave it permanently dirty.
+        /// </summary>
+        public bool SetInlet(int owner, Vector3 worldMouth, float worldHalfWidth, float worldReach)
+        {
+            Vector3 local = transform.InverseTransformPoint(worldMouth);
+            float scale = WorldScale;
+
+            var wanted = new PondInlet
+            {
+                owner = owner,
+                angleDeg = Mathf.Atan2(local.z, local.x) * Mathf.Rad2Deg,
+                halfWidth = Mathf.Max(0f, worldHalfWidth) / scale,
+                reach = Mathf.Max(0f, worldReach) / scale
+            };
+
+            if (settings.inlets == null) settings.inlets = new List<PondInlet>();
+
+            for (int i = 0; i < settings.inlets.Count; i++)
+            {
+                if (settings.inlets[i].owner != owner) continue;
+                if (settings.inlets[i].Matches(wanted)) return false;
+
+                settings.inlets[i] = wanted;
+                return true;
+            }
+
+            settings.inlets.Add(wanted);
+            return true;
+        }
+
+        /// <summary>Forgets a river's inlet. Returns true when there was one; the caller rebuilds.</summary>
+        public bool ClearInlet(int owner)
+        {
+            if (settings.inlets == null) return false;
+
+            for (int i = 0; i < settings.inlets.Count; i++)
+            {
+                if (settings.inlets[i].owner != owner) continue;
+                settings.inlets.RemoveAt(i);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Points the pond's lava along <paramref name="worldDirection"/> — the way the river
+        /// feeding it runs — so the pool reads as carrying on from the river. Returns true when it
+        /// moved.
+        /// </summary>
+        public bool SetFlowDirection(Vector3 worldDirection)
+        {
+            Vector3 local = transform.InverseTransformDirection(worldDirection);
+            local.y = 0f;
+            if (local.sqrMagnitude < 1e-8f) return false;
+
+            // The molten projection runs its V axis at this angle clockwise from the pond's own +Z,
+            // so the direction has to be read in the pond's space. Lava Pond on LobbyIsland is
+            // turned 115 degrees; taking it off the world axes instead puts the pool's lava that
+            // far out from the river feeding it.
+            float angle = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+            if (angle < 0f) angle += 360f;
+
+            if (Mathf.Abs(Mathf.DeltaAngle(settings.flowAngle, angle)) < 0.25f) return false;
+
+            settings.flowAngle = angle;
+            return true;
+        }
 
         /// <summary>
         /// How much of the pond the crust plates cover, 0 to 1, as last built. Measured during the

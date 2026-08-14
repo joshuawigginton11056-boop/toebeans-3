@@ -35,7 +35,12 @@ namespace LavaPond
             var rng = new Rng(s.seed);
             var buf = new MeshBuffer(SubmeshCount, s.uvScale, s.flowAngle);
 
-            var shore = new ShoreShape(s, ref rng);
+            var shore = new PondShore(s, ref rng);
+
+            // Takes no rng of its own and is not passed to the plates, so a pond with no rivers
+            // running into it builds the same mesh it always did, down to the vertex.
+            var inlets = new PondInletField(s, shore);
+
             var plates = new PlateField(s, shore, ref rng);
             VentShape vent = s.vent ? new VentShape(s, shore, ref rng) : null;
 
@@ -55,14 +60,14 @@ namespace LavaPond
             buf.PondArea = FootprintArea(shoreRing);
 
             BuildMolten(buf, s, shore);
-            BuildCrust(buf, s, shore, plates, shoreRing, vent, ref rng);
-            BuildShoreLip(buf, s, shoreRing);
-            Vector3[] rimOuter = BuildRim(buf, s, shore, shoreRing, ref rng);
+            BuildCrust(buf, s, shore, plates, inlets, shoreRing, vent, ref rng);
+            BuildShoreLip(buf, s, shore, inlets, shoreRing);
+            Vector3[] rimOuter = BuildRim(buf, s, shore, inlets, shoreRing, ref rng);
             BuildSkirtAndFloor(buf, s, rimOuter);
             if (vent != null) BuildVent(buf, s, vent, ref rng);
             BuildSlabs(buf, s, shore, plates, vent, ref rng);
             BuildBubbles(buf, s, shore, plates, vent, ref rng);
-            BuildRocks(buf, s, shore, vent, ref rng);
+            BuildRocks(buf, s, shore, inlets, vent, ref rng);
 
             if (vent != null)
             {
@@ -84,15 +89,22 @@ namespace LavaPond
 
         // ------------------------------------------------------------------ shore
 
-        /// <summary>The wandering outline of the pond, as a radius per angle.</summary>
-        sealed class ShoreShape
+        /// <summary>
+        /// The wandering outline of the pond, as a radius per angle.
+        ///
+        /// Public because a river ending in this pond has to know where the edge of the lava
+        /// actually is. A pond of radius 12 at the default irregularity is anywhere from 10.1 to
+        /// 13.1 m out depending on the bearing, and it is turned and scaled besides, so the edge is
+        /// not somewhere that can be judged from the scene view.
+        /// </summary>
+        public sealed class PondShore
         {
             readonly float _radius;
             readonly float[] _amp;
             readonly float[] _phase;
             readonly int[] _freq;
 
-            public ShoreShape(LavaPondSettings s, ref Rng rng)
+            public PondShore(LavaPondSettings s, ref Rng rng)
             {
                 _radius = Mathf.Max(0.01f, s.radius);
                 _freq = new[] { 2, 3, 5, 7 };
@@ -138,6 +150,234 @@ namespace LavaPond
             }
         }
 
+        // ------------------------------------------------------------------ shore queries
+
+        /// <summary>
+        /// The shoreline these settings produce, without building any geometry.
+        ///
+        /// The shore is the first thing <see cref="Build"/> takes off the rng, which is what makes
+        /// re-rolling it here give back the same outline the mesh was built with. Anything added to
+        /// the build ahead of it would silently break that.
+        /// </summary>
+        public static PondShore CreateShore(LavaPondSettings settings)
+        {
+            LavaPondSettings s = settings ?? new LavaPondSettings();
+            var rng = new Rng(s.seed);
+            return new PondShore(s, ref rng);
+        }
+
+        /// <summary>The inlets these settings carry, resolved against their shoreline.</summary>
+        public static PondInletField CreateInlets(LavaPondSettings settings, PondShore shore)
+        {
+            return new PondInletField(settings ?? new LavaPondSettings(), shore);
+        }
+
+        /// <summary>True when a point in the pond's own space is over the lava.</summary>
+        public static bool Contains(PondShore shore, Vector3 local)
+        {
+            return FlatRadius(local) <= shore.Radius(Mathf.Atan2(local.z, local.x));
+        }
+
+        /// <summary>
+        /// Where a straight run from <paramref name="from"/> along <paramref name="dir"/> crosses
+        /// the edge of the lava, in the pond's own space.
+        ///
+        /// It always answers with the crossing the run *enters* by, which is why it starts its
+        /// search well behind the point it was given. A river drawn short of the pond, one drawn a
+        /// little past the edge and one drawn clean across the pool all have to land on the same
+        /// answer, or the join moves the moment anything is nudged; searching forward from the end
+        /// of the route answers the last two with the shore the river leaves by.
+        /// </summary>
+        public static bool TryCrossShore(PondShore shore, Vector3 from, Vector3 dir, out Vector3 hit)
+        {
+            hit = from;
+
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 1e-8f) return false;
+            dir.Normalize();
+
+            // Far enough back to be outside the pond whatever was passed in — the shore never
+            // reaches half again its mean radius — and far enough on to cross the whole pool.
+            float back = shore.MeanRadius * 2f + FlatRadius(from) + 4f;
+            float step = Mathf.Max(0.05f, shore.MeanRadius * 0.05f);
+            int steps = Mathf.Clamp(Mathf.CeilToInt(back * 2f / step), 1, 8192);
+
+            float outside = -back;
+            float inside = 0f;
+            bool found = false;
+
+            for (int i = 1; i <= steps; i++)
+            {
+                float d = -back + i * step;
+                if (!Contains(shore, from + dir * d)) { outside = d; continue; }
+
+                inside = d;
+                found = true;
+                break;
+            }
+
+            if (!found) return false;
+
+            // Bisection: the shoreline is smooth between samples, and a centimetre is well past
+            // anything the mesh can show.
+            for (int i = 0; i < 32; i++)
+            {
+                float mid = (outside + inside) * 0.5f;
+                if (Contains(shore, from + dir * mid)) inside = mid;
+                else outside = mid;
+            }
+
+            hit = from + dir * inside;
+            return true;
+        }
+
+        /// <summary>
+        /// Local height of the molten surface at a point: the level a river feeding the pond has to
+        /// arrive at for the two to read as one body of lava rather than two meshes.
+        /// </summary>
+        public static float LavaSurfaceY(LavaPondSettings settings, float x, float z)
+        {
+            return MoltenY(x, z, settings ?? new LavaPondSettings());
+        }
+
+        /// <summary>Local height of the crust surface at a point, which the lava sits below.</summary>
+        public static float CrustSurfaceY(LavaPondSettings settings, float x, float z)
+        {
+            LavaPondSettings s = settings ?? new LavaPondSettings();
+            return CrustHeight(x, z, s.seed);
+        }
+
+        static float FlatRadius(Vector3 local)
+        {
+            return Mathf.Sqrt(local.x * local.x + local.z * local.z);
+        }
+
+        // ------------------------------------------------------------------ inlets
+
+        /// <summary>
+        /// Where rivers pour in, and what that does to the shore around them.
+        ///
+        /// Deliberately narrow in what it can touch. It notches the rim's height, drops the shore
+        /// lip and cuts crust triangles, and that is all: it never moves the shoreline, never
+        /// changes the rim's footprint — so the pond still sits flush on the ground and its skirt
+        /// stays put — and never consumes a random number, so nothing outside the mouth shifts when
+        /// a river is added, moved or taken away.
+        /// </summary>
+        public sealed class PondInletField
+        {
+            struct Mouth
+            {
+                public float Angle;      // radians, Atan2(z, x) like the shore
+                public float HalfWidth;  // metres across the mouth
+                public float Reach;      // metres the melt fan runs into the pond
+                public Vector2 Point;    // where the mouth sits on the shoreline
+                public Vector2 Inward;   // unit vector from the mouth toward the middle
+            }
+
+            readonly Mouth[] _mouths;
+
+            public PondInletField(LavaPondSettings s, PondShore shore)
+            {
+                List<PondInlet> list = s.inlets;
+                int n = list != null ? list.Count : 0;
+                var mouths = new List<Mouth>(n);
+
+                for (int i = 0; i < n; i++)
+                {
+                    PondInlet inlet = list[i];
+                    float half = Mathf.Max(0f, inlet.halfWidth);
+                    if (half <= 1e-3f) continue;
+
+                    float a = inlet.angleDeg * Mathf.Deg2Rad;
+                    float r = shore.Radius(a);
+                    var point = new Vector2(Mathf.Cos(a) * r, Mathf.Sin(a) * r);
+                    Vector2 inward = point.sqrMagnitude > 1e-6f ? -point.normalized : Vector2.right;
+
+                    // A mouth wider than the pond would open the whole shore at once, which is a
+                    // pond with no bank rather than a pond with a river running into it.
+                    half = Mathf.Min(half, shore.MeanRadius * 0.9f);
+
+                    mouths.Add(new Mouth
+                    {
+                        Angle = a,
+                        HalfWidth = half,
+                        Reach = Mathf.Max(0f, inlet.reach),
+                        Point = point,
+                        Inward = inward
+                    });
+                }
+
+                _mouths = mouths.ToArray();
+            }
+
+            public bool Any { get { return _mouths.Length > 0; } }
+
+            /// <summary>
+            /// How open the shore is at this angle: 0 where the bank is untouched, 1 in the middle
+            /// of a mouth. Measured as an arc length rather than as an angle, so a mouth of a given
+            /// width covers the same stretch of shore whatever size the pond is.
+            /// </summary>
+            public float Openness(float angle, PondShore shore)
+            {
+                float best = 0f;
+                for (int i = 0; i < _mouths.Length; i++)
+                {
+                    Mouth m = _mouths[i];
+                    float arc = Mathf.Abs(Mathf.DeltaAngle(angle * Mathf.Rad2Deg, m.Angle * Mathf.Rad2Deg))
+                                * Mathf.Deg2Rad * Mathf.Max(0.01f, shore.Radius(angle));
+
+                    // Fully open across the river itself, feathering out over half as much again,
+                    // so the bank climbs back rather than stepping up beside the channel.
+                    float edge = m.HalfWidth * 1.6f;
+                    float t = Mathf.Clamp01((arc - m.HalfWidth) / Mathf.Max(0.01f, edge - m.HalfWidth));
+                    float open = 1f - Mathf.SmoothStep(0f, 1f, t);
+                    if (open > best) best = open;
+                }
+                return best;
+            }
+
+            /// <summary>
+            /// How hard the arriving lava keeps the crust open at a point in the pond, 0 to 1. Full
+            /// strength across the width of the river, fading with distance from the mouth, and the
+            /// two measured separately.
+            ///
+            /// Not a radial falloff: that leaves crust standing along both sides of the channel from
+            /// the moment it enters, so the river arrives through a gap narrower than itself.
+            /// </summary>
+            public float Melt(float x, float z)
+            {
+                float best = 0f;
+                for (int i = 0; i < _mouths.Length; i++)
+                {
+                    Mouth m = _mouths[i];
+                    if (m.Reach <= 1e-3f) continue;
+
+                    float dx = x - m.Point.x;
+                    float dz = z - m.Point.y;
+
+                    float along = dx * m.Inward.x + dz * m.Inward.y;
+                    float across = dx * -m.Inward.y + dz * m.Inward.x;
+
+                    // Everything behind the shoreline counts as at the mouth: that is the river
+                    // itself, and the fan should not begin halfway across the pond.
+                    along = Mathf.Max(0f, along);
+
+                    float u = Mathf.Clamp01(along / m.Reach);
+                    float spread = m.HalfWidth * Mathf.Lerp(1f, 1.8f, u);
+                    float v = Mathf.Abs(across) / Mathf.Max(0.01f, spread);
+
+                    // Note Unity's SmoothStep interpolates between its first two arguments rather
+                    // than treating them as edges, so the edges are applied to t by hand.
+                    float lane = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((v - 0.65f) / 0.6f));
+                    float run = 1f - Mathf.SmoothStep(0f, 1f, u);
+
+                    float melt = lane * run;
+                    if (melt > best) best = melt;
+                }
+                return best;
+            }
+        }
+
         /// <summary>Gentle undulation of the crust surface, before per-plate offsets.</summary>
         static float CrustHeight(float x, float z, int seed)
         {
@@ -175,7 +415,7 @@ namespace LavaPond
             /// <summary>Height of the lava sitting in the mouth, below the lip.</summary>
             public readonly float PoolY;
 
-            public VentShape(LavaPondSettings s, ShoreShape shore, ref Rng rng)
+            public VentShape(LavaPondSettings s, PondShore shore, ref Rng rng)
             {
                 // Capped so the cone's base always lands on crust. A vent wider than the pond would
                 // leave the cone hanging over the rim with nothing to stand on.
@@ -273,7 +513,7 @@ namespace LavaPond
             readonly bool[] _open;
             readonly float _maxOffset;
 
-            public PlateField(LavaPondSettings s, ShoreShape shore, ref Rng rng)
+            public PlateField(LavaPondSettings s, PondShore shore, ref Rng rng)
             {
                 int n = Mathf.Max(1, s.plateCount);
                 _sites = new Vector2[n];
@@ -381,7 +621,7 @@ namespace LavaPond
         /// The lava itself: one disc sitting below the crust, seen through every crack and pool
         /// above it. It runs a little past the shoreline so the rim never has a seam to show.
         /// </summary>
-        static void BuildMolten(MeshBuffer buf, LavaPondSettings s, ShoreShape shore)
+        static void BuildMolten(MeshBuffer buf, LavaPondSettings s, PondShore shore)
         {
             int seg = Mathf.Max(3, s.angularSegments);
             int rings = Mathf.Max(2, s.radialRings);
@@ -432,7 +672,7 @@ namespace LavaPond
         // ------------------------------------------------------------------ crust
 
         /// <summary>The rim shared by the crust and the rock bank, so the two weld cleanly.</summary>
-        static Vector3[] BuildShoreRing(LavaPondSettings s, ShoreShape shore)
+        static Vector3[] BuildShoreRing(LavaPondSettings s, PondShore shore)
         {
             int seg = Mathf.Max(3, s.angularSegments);
             var ring = new Vector3[seg];
@@ -444,8 +684,8 @@ namespace LavaPond
             return ring;
         }
 
-        static void BuildCrust(MeshBuffer buf, LavaPondSettings s, ShoreShape shore, PlateField plates,
-                               Vector3[] shoreRing, VentShape vent, ref Rng rng)
+        static void BuildCrust(MeshBuffer buf, LavaPondSettings s, PondShore shore, PlateField plates,
+                               PondInletField inlets, Vector3[] shoreRing, VentShape vent, ref Rng rng)
         {
             int seg = Mathf.Max(3, s.angularSegments);
             int rings = Mathf.Max(2, s.radialRings);
@@ -519,7 +759,7 @@ namespace LavaPond
                 }
             }
 
-            sheet.Emit(buf, plates, shore, s, vent);
+            sheet.Emit(buf, plates, shore, s, inlets, vent);
         }
 
         /// <summary>
@@ -568,8 +808,8 @@ namespace LavaPond
             /// result to the mesh. Plates that never formed, and anything buried under the vent, are
             /// dropped on the way through.
             /// </summary>
-            public void Emit(MeshBuffer buf, PlateField plates, ShoreShape shore,
-                             LavaPondSettings s, VentShape vent)
+            public void Emit(MeshBuffer buf, PlateField plates, PondShore shore,
+                             LavaPondSettings s, PondInletField inlets, VentShape vent)
             {
                 int triCount = _tris.Count / 3;
                 var triPlate = new int[triCount];
@@ -602,6 +842,19 @@ namespace LavaPond
                     int p = triPlate[t];
                     if (plates.IsOpen(p)) continue;
                     if (vent != null && vent.ContainsBase(triCentre[t].x, triCentre[t].y, 1f)) continue;
+
+                    // The fan of open lava in front of a river's mouth, cut triangle by triangle.
+                    // Dropping whole plates instead would be far too coarse — a plate is metres
+                    // across, and one whose middle sits outside the fan still lays crust over most
+                    // of it — and choosing which plates form would move every random number after
+                    // it, reshuffling the whole pond. The noise stops the edge reading as a stencil.
+                    if (inlets.Any)
+                    {
+                        float melt = inlets.Melt(triCentre[t].x, triCentre[t].y);
+                        float ragged = PondNoise.Signed(triCentre[t].x * 0.32f, triCentre[t].y * 0.32f,
+                                                        s.seed + 5471) * 0.22f;
+                        if (melt + ragged > 0.5f) continue;
+                    }
 
                     List<int> list;
                     if (!byPlate.TryGetValue(p, out list))
@@ -685,7 +938,7 @@ namespace LavaPond
             /// copy the other way and opens the other half. Corners on the shoreline are left alone,
             /// since that edge belongs to the rim and must stay welded to it.
             /// </summary>
-            Vector3 Place(int index, int plate, bool isShared, PlateField plates, ShoreShape shore,
+            Vector3 Place(int index, int plate, bool isShared, PlateField plates, PondShore shore,
                           LavaPondSettings s)
             {
                 Vector3 v = _verts[index];
@@ -743,11 +996,22 @@ namespace LavaPond
         /// block. It is also what gives an open lake a visible lip, so Crust Thickness still reads
         /// as a depth rather than as nothing at all.
         /// </summary>
-        static void BuildShoreLip(MeshBuffer buf, LavaPondSettings s, Vector3[] shoreRing)
+        static void BuildShoreLip(MeshBuffer buf, LavaPondSettings s, PondShore shore,
+                                  PondInletField inlets, Vector3[] shoreRing)
         {
             int seg = shoreRing.Length;
+            float angleStep = Mathf.PI * 2f / seg;
+
             for (int j = 0; j < seg; j++)
             {
+                // Where a river runs in there is no lip. The lava is continuous through the mouth,
+                // and a wall standing across it is exactly the edge a river appears to overlap.
+                // Nothing is left open by dropping it: the crust in front of the mouth has gone
+                // too, so there is no plate edge here to look under.
+                if (inlets.Any &&
+                    Mathf.Max(inlets.Openness(j * angleStep, shore),
+                              inlets.Openness((j + 1) * angleStep, shore)) > 0.5f) continue;
+
                 Vector3 top0 = shoreRing[j];
                 Vector3 top1 = shoreRing[(j + 1) % seg];
                 var bot0 = new Vector3(top0.x, MoltenY(top0.x, top0.z, s) - 0.08f, top0.z);
@@ -810,8 +1074,8 @@ namespace LavaPond
         // ------------------------------------------------------------------ rim
 
         /// <summary>Returns the outer ring of the rim, which the skirt hangs from.</summary>
-        static Vector3[] BuildRim(MeshBuffer buf, LavaPondSettings s, ShoreShape shore,
-                                  Vector3[] shoreRing, ref Rng rng)
+        static Vector3[] BuildRim(MeshBuffer buf, LavaPondSettings s, PondShore shore,
+                                  PondInletField inlets, Vector3[] shoreRing, ref Rng rng)
         {
             int seg = shoreRing.Length;
             int rings = Mathf.Max(1, s.rimRings);
@@ -845,6 +1109,27 @@ namespace LavaPond
                     float h = s.rimHeight * profile * shore.RimScale(angle, s.seed + 1607);
                     h += PondNoise.Signed(x * 0.35f, z * 0.35f, s.seed + 4001)
                          * s.rimHeight * 0.45f * s.rimRoughness * noiseFade;
+
+                    // A river cuts its way through the bank rather than climbing over it, so the
+                    // rim is notched down across the mouth.
+                    //
+                    // Height only, and faded out by the time it reaches the outer edge. The width
+                    // and the outer ring are what the pond stands on: pull those in and the skirt
+                    // comes with them, leaving the rim hanging off the ground beside the mouth with
+                    // daylight under it. Notching the height alone leaves the footprint exactly
+                    // where it was.
+                    if (inlets.Any)
+                    {
+                        // Cut all the way across the bank, and released only over the last quarter
+                        // of it. The river lies over the whole rim width at the mouth, so a notch
+                        // that shallows out on the way across leaves a ridge under the middle of
+                        // the channel for the lava to ride over. The outer ring is already back at
+                        // ground level by design, so letting it go changes nothing but keeps the
+                        // pond meeting the terrain exactly where it always did.
+                        float release = Mathf.Clamp01((1f - w) / 0.25f);
+                        float cut = inlets.Openness(angle, shore) * release * Mathf.Clamp01(s.inletRimCut);
+                        h = Mathf.Lerp(h, -s.crustThickness * 0.5f, cut);
+                    }
 
                     grid[i][j] = new Vector3(x, h, z);
                 }
@@ -995,7 +1280,7 @@ namespace LavaPond
         /// Plates of crust that buckled and tipped up. Along a ridge for the most part, the way they
         /// pile up where two rafts of crust are being pushed together, with the rest scattered.
         /// </summary>
-        static void BuildSlabs(MeshBuffer buf, LavaPondSettings s, ShoreShape shore, PlateField plates,
+        static void BuildSlabs(MeshBuffer buf, LavaPondSettings s, PondShore shore, PlateField plates,
                                VentShape vent, ref Rng rng)
         {
             if (s.slabCount <= 0) return;
@@ -1034,7 +1319,7 @@ namespace LavaPond
         }
 
         /// <summary>Pulls a point back inside the shoreline if it strayed past it.</summary>
-        static Vector3 ClampToCrust(Vector3 p, ShoreShape shore, int seed, float maxFraction)
+        static Vector3 ClampToCrust(Vector3 p, PondShore shore, int seed, float maxFraction)
         {
             float angle = Mathf.Atan2(p.z, p.x);
             float r = Mathf.Sqrt(p.x * p.x + p.z * p.z);
@@ -1107,7 +1392,7 @@ namespace LavaPond
         /// Domes swelling up out of the lava. Only ever placed where a plate failed to form, so a
         /// bubble never appears to be pushing up through solid crust.
         /// </summary>
-        static void BuildBubbles(MeshBuffer buf, LavaPondSettings s, ShoreShape shore, PlateField plates,
+        static void BuildBubbles(MeshBuffer buf, LavaPondSettings s, PondShore shore, PlateField plates,
                                  VentShape vent, ref Rng rng)
         {
             for (int i = 0; i < s.bubbleCount; i++)
@@ -1144,7 +1429,8 @@ namespace LavaPond
 
         // ------------------------------------------------------------------ rocks
 
-        static void BuildRocks(MeshBuffer buf, LavaPondSettings s, ShoreShape shore, VentShape vent, ref Rng rng)
+        static void BuildRocks(MeshBuffer buf, LavaPondSettings s, PondShore shore,
+                               PondInletField inlets, VentShape vent, ref Rng rng)
         {
             for (int i = 0; i < s.rockCount; i++)
             {
@@ -1163,11 +1449,26 @@ namespace LavaPond
                     at = new Vector3(Mathf.Cos(angle) * r, h, Mathf.Sin(angle) * r);
                 }
                 if (AtVent(vent, at, s.rockSize * 2.1f)) continue;
-                AddRock(buf, s, at, ref rng);
+
+                // Nothing stands in the mouth of a river of lava, and a boulder left there sits in
+                // the notch looking like the bank was never opened at all.
+                //
+                // Shaped and thrown away rather than skipped: it takes its draws from the rng
+                // either way, so the boulders further round the shore stay exactly where they are.
+                // The vent case above keeps its old early-out so that ponds without a river build
+                // byte for byte what they did before.
+                bool inMouth = inlets.Any &&
+                               (inlets.Openness(angle, shore) > 0.35f || inlets.Melt(at.x, at.z) > 0.35f);
+
+                AddRock(buf, s, at, inMouth, ref rng);
             }
         }
 
-        static void AddRock(MeshBuffer buf, LavaPondSettings s, Vector3 at, ref Rng rng)
+        /// <summary>
+        /// One boulder. <paramref name="discard"/> shapes it and then drops it rather than
+        /// returning early, so it costs the rng exactly what it would have cost — see the call site.
+        /// </summary>
+        static void AddRock(MeshBuffer buf, LavaPondSettings s, Vector3 at, bool discard, ref Rng rng)
         {
             const int lat = 4;
             const int lon = 6;
@@ -1216,6 +1517,8 @@ namespace LavaPond
                     grid[i][j] = new Vector3(grid[i][j].x, grid[i][j].y - sink, grid[i][j].z);
 
             float shade = rng.Range(0.8f, 1.15f);
+            if (discard) return;
+
             for (int i = 0; i < lat; i++)
             {
                 for (int j = 0; j < lon; j++)
