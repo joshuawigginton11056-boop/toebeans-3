@@ -1,0 +1,572 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!181963792 &2655988077585873504
+Preset:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: LavaFlowGeneratorpre1
+  m_TargetType:
+    m_NativeTypeID: 114
+    m_ManagedTypePPtr: {fileID: 11500000, guid: 43d9b9574a3c7434a9b84b40471e6dab, type: 3}
+    m_ManagedTypeFallback: 
+  m_Properties:
+  - target: {fileID: 0}
+    propertyPath: m_Enabled
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: m_EditorHideFlags
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: m_EditorClassIdentifier
+    value: Assembly-CSharp::LavaFlow.LavaFlowGenerator
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.seed
+    value: 20260803
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.pathMode
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.size
+    value: 27
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[0].x
+    value: -0.00000047683716
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[0].y
+    value: 1.0315628
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[0].z
+    value: 5.0000434
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[1].x
+    value: -0.000013828278
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[1].y
+    value: 1.0315628
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[1].z
+    value: 10.000002
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[2].x
+    value: -0.000013828278
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[2].y
+    value: 0.09289169
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[2].z
+    value: 15.000044
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[3].x
+    value: -0.000027656555
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[3].y
+    value: -5.153183
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[3].z
+    value: 20.000004
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[4].x
+    value: -0.000027656555
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[4].y
+    value: -11.052258
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[4].z
+    value: 25.000046
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[5].x
+    value: -0.00004196167
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[5].y
+    value: -16.510777
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[5].z
+    value: 30.000004
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[6].x
+    value: -0.00004386902
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[6].y
+    value: -21.754154
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[6].z
+    value: 35.000046
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[7].x
+    value: -0.00005531311
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[7].y
+    value: -26.764599
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[7].z
+    value: 40.000008
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[8].x
+    value: -0.00005531311
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[8].y
+    value: -31.497845
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[8].z
+    value: 45.000046
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[9].x
+    value: -0.00006866455
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[9].y
+    value: -35.582085
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[9].z
+    value: 50.000008
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[10].x
+    value: -0.00006866455
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[10].y
+    value: -39.010338
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[10].z
+    value: 55.000053
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[11].x
+    value: -0.00008392334
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[11].y
+    value: -41.92228
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[11].z
+    value: 60.000008
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[12].x
+    value: -0.00008392334
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[12].y
+    value: -44.424667
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[12].z
+    value: 65.000046
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[13].x
+    value: -0.00009918213
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[13].y
+    value: -46.537636
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[13].z
+    value: 70.000015
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[14].x
+    value: -0.00009536743
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[14].y
+    value: -47.741863
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[14].z
+    value: 75.00005
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[15].x
+    value: -0.0001335144
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[15].y
+    value: -48.718235
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[15].z
+    value: 77.8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[16].x
+    value: 2.0824547
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[16].y
+    value: -47.999454
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[16].z
+    value: 89.8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[17].x
+    value: -0.30700684
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[17].y
+    value: -48.09162
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[17].z
+    value: 101.79997
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[18].x
+    value: -4.887829
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[18].y
+    value: -48.657955
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[18].z
+    value: 113.80002
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[19].x
+    value: -8.071999
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[19].y
+    value: -49.463562
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[19].z
+    value: 125.79997
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[20].x
+    value: -8.971123
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[20].y
+    value: -49.943466
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[20].z
+    value: 137.80002
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[21].x
+    value: -7.3305893
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[21].y
+    value: -49.837395
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[21].z
+    value: 149.80003
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[22].x
+    value: -3.6147614
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[22].y
+    value: -48.604797
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[22].z
+    value: 161.8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[23].x
+    value: 1.124321
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[23].y
+    value: -48.711967
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[23].z
+    value: 173.80003
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[24].x
+    value: 5.5449905
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[24].y
+    value: -49.71232
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[24].z
+    value: 185.80005
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[25].x
+    value: 8.395851
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[25].y
+    value: -50.130486
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[25].z
+    value: 197.8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[26].x
+    value: 58.986786
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[26].y
+    value: -44.075306
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.waypoints.Array.data[26].z
+    value: 246.23346
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.maxLength
+    value: 220
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.stationSpacing
+    value: 2.2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.momentum
+    value: 0.55
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.wander
+    value: 0.25
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.flatSlopeAngle
+    value: 8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.riverRunLength
+    value: 80
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.groundFollow
+    value: 0.7
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.surfaceOffset
+    value: 0.25
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.cascadeWidth
+    value: 6
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.riverWidth
+    value: 14
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.steepAngle
+    value: 30
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.widthVariation
+    value: 0.1334
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.lateralSegments
+    value: 14
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.channelDepth
+    value: 0.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.meander
+    value: 4.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.meanderLength
+    value: 55
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.leveeFraction
+    value: 0.26
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.leveeHeight
+    value: 0.9
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.leveeRoughness
+    value: 0.276
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.skirtDepth
+    value: 2.2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.crustCoverageRiver
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.crustCoverageCascade
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.warmCrustRatio
+    value: 0.33
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.plateLength
+    value: 4.5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.plateWidth
+    value: 2.2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.plateJitter
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.crackWidth
+    value: 0.2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.crustThickness
+    value: 0.22
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.plateHeightVariation
+    value: 0.0958
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.ridgeHeight
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.ridgeSpacing
+    value: 2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.ridgeCurvature
+    value: 2.21
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.moltenTurbulence
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.slabCount
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.slabSize
+    value: 0.3
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.slabHeight
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.bubbleCount
+    value: 120
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.bubbleSize
+    value: 0.75
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.rockCount
+    value: 160
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.rockSize
+    value: 1.15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.uvMode
+    value: 2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.uvScale
+    value: 0.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: settings.cascadeSpeedBoost
+    value: 1.8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: groundMode
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: terrain
+    value: 
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: groundLayers.m_Bits
+    value: 4294967295
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: spline
+    value: 
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upstream
+    value: 
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: snapToUpstream
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: updateCollider
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: liveUpdate
+    value: 1
+    objectReference: {fileID: 0}
+  m_ExcludedProperties: []
+  m_CoupledType:
+    m_NativeTypeID: 0
+    m_ManagedTypePPtr: {fileID: 0}
+    m_ManagedTypeFallback: 
+  m_CoupledProperties: []
