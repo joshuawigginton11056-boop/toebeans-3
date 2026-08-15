@@ -37,7 +37,6 @@
 
 # Unity YAML files
 *.anim                  unity-yaml
-*.asset                 unity-yaml
 *.brush                 unity-yaml
 *.controller            unity-yaml
 *.flare                 unity-yaml
@@ -169,3 +168,25 @@ Packages/packages-lock.json linguist-generated
 
 # Exceptions for .asset files such as lightning pre-baking
 LightingData.asset     binary
+
+# ---------------------------------------------------------------------------
+# *.asset is deliberately NOT given the unity-yaml macro above.
+#
+# That macro carries eol=lf, which normalises line endings even on files git
+# detects as binary. Most .asset files are YAML under Force Text serialization,
+# but some types - TerrainData above all - stay BINARY whatever the
+# serialization mode. Applying eol=lf to those strips every CR byte out of the
+# file and destroys it silently: the file still opens, still has a plausible
+# size, and Unity simply refuses to import it.
+#
+# This project lost a sculpted 1025x1025 terrain heightmap that way on
+# 2026-08-15. Assets/New Terrain 2.asset went into git 1,070 bytes short of the
+# size its own header declared, and restoring it from the commit overwrote the
+# only good copy. Assets/New Terrain.asset had already been damaged the same
+# way, 59 bytes short, since the clone on 2026-07-28.
+#
+# Leaving the attribute off lets git auto-detect: YAML .asset files are handled
+# as text, binary ones are left byte-for-byte alone. Do not add eol or text
+# here without checking round-trip integrity on a binary .asset first.
+# ---------------------------------------------------------------------------
+*.asset                 merge=unityyamlmerge linguist-language=yaml
