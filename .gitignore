@@ -105,3 +105,24 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# ---------------------------------------------------------------------------
+# Large third-party Asset Store packs the scene does NOT reference.
+#
+# Verified 2026-08-15 with AssetDatabase.GetDependencies on
+# Assets/Scenes/LobbyIsland.unity: zero assets from each of these is used.
+# Roughly 4.6 GB of re-downloadable content that would otherwise make the
+# repository unusable.
+#
+# Re-check with GetDependencies before ignoring any further pack. Four others
+# — MedievalTownExteriors, ithappy, BOKI and POLY_Mountain — ARE referenced by
+# the scene and are deliberately NOT listed here.
+# ---------------------------------------------------------------------------
+/[Aa]ssets/CreepyHeadlessStatue/
+/[Aa]ssets/CreepyHeadlessStatue.meta
+/[Aa]ssets/TerrainSampleAssets/
+/[Aa]ssets/TerrainSampleAssets.meta
+/[Aa]ssets/YughuesFreeGroundMaterials/
+/[Aa]ssets/YughuesFreeGroundMaterials.meta
+/[Aa]ssets/MaxiBrut/
+/[Aa]ssets/MaxiBrut.meta
