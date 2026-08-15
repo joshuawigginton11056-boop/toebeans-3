@@ -1,0 +1,57 @@
+{
+    "loadouts": [
+        {
+            "name": "Deadtrees",
+            "prefabGuids": [
+                "3e6544a86819bf942aafae3c6157f692",
+                "9adfa627fd4f72d4ab615012349e1825",
+                "45f6e9c008a8e944fb033319b4d388c1",
+                "e06bdc30e243df64ba67d74eb0e3638c",
+                "f768b36996e750e44972090cf95b3891",
+                "c7c7375329b387145abc2594c9bd633b",
+                "419bf2150c2037f439235655e2e98859",
+                "5dbdd41d34b73e643ae3a98f3b2fba6b",
+                "27360fa6a1d9f46429cb1146e6b48a24",
+                "a123e584f9b8db941aeaf1bd57e1788e",
+                "3809b7ab36ff6c341a14d87904ba4ed0",
+                "ffc62253eb30a874da9ffa9202866c1c",
+                "2957bad0c65eadd429cc161c7bc4dd78",
+                "678dc5d855de7884c9fd461ea304aca7",
+                "0be765571ef52bd43ab67c11ed95dad5"
+            ],
+            "parentName": "ScatteredTrees",
+            "minSpacing": 0.5,
+            "maxSlope": 35.0,
+            "count": 50,
+            "brushRadius": 5.0,
+            "treesPerDab": 1,
+            "minScale": 1.0,
+            "maxScale": 2.0,
+            "spacingMode": 0,
+            "canopySpacing": 1.0,
+            "extraGap": 0.0,
+            "dabStep": 0.5
+        },
+        {
+            "name": "Shrroms",
+            "prefabGuids": [
+                "e873531ef7ff81846bb9bc6c44f83aed",
+                "eaa70692d0171574f9ffeaa524dc2b7e",
+                "14fecc2e00953cf4db4c710dcbd61915",
+                "4803056ce7a6c874a8d21072ebf38e6d"
+            ],
+            "parentName": "ScatteredTrees",
+            "minSpacing": 3.0,
+            "maxSlope": 35.0,
+            "count": 50,
+            "brushRadius": 5.0,
+            "treesPerDab": 5,
+            "minScale": 1.0,
+            "maxScale": 2.0,
+            "spacingMode": 0,
+            "canopySpacing": 1.0,
+            "extraGap": 0.0,
+            "dabStep": 0.5
+        }
+    ]
+}
