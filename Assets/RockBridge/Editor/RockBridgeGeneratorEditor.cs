@@ -97,13 +97,15 @@ namespace RockBridge.EditorTools
             EditorGUILayout.LabelField("Landings", EditorStyles.boldLabel);
 
             EditorGUILayout.HelpBox(
-                "The deck lands on the solid ground at both ends, so the join needs no help: leave " +
-                "Landing Sink at 0 and the driving surface meets the terrain flush.\n\n" +
-                "There is deliberately no 'reshape the terrain to fit' button here. One was written " +
-                "and removed: the landing height is read back off the ground, so anything that " +
-                "moves the ground moves the landing, which asks for the ground to move again. Every " +
-                "version of it grew its own footprint on each press.",
+                "A flat deck cannot be made flush with a bumpy hillside by moving the deck. Landing " +
+                "Sink is one number and the ground differs at the two ends, so every value leaves " +
+                "the deck standing proud somewhere or lets terrain poke through somewhere else.\n\n" +
+                "Blend Terrain Into Landings reshapes the ground instead, which is the only way the " +
+                "join is genuinely seamless. It sets Landing Sink to 0 as part of the operation.",
                 MessageType.None);
+
+            if (GUILayout.Button("Blend Terrain Into Landings"))
+                BridgeLandingBlender.Blend(gen);
 
             if (gen.Settings.heightMode != BridgeHeightMode.Free) return;
 
