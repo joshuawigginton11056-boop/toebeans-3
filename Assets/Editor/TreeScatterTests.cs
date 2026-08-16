@@ -26,6 +26,7 @@ internal static class TreeScatterTests
         failures += FixedModeIgnoresCanopySize(log);
         failures += BaseOffsetFindsLowestMeshPoint(log);
         failures += PropOrientationFollowsGround(log);
+        failures += RestPoseSurvivesPlacement(log);
         failures += PropSeatingLandsOnSurface(log);
         failures += ZeroSpacingAllowsOverlap(log);
         failures += BrushRayWindowStaysLocal(log);
@@ -296,6 +297,27 @@ internal static class TreeScatterTests
         fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(scaled) - 1f) < 0.001f,
             $"root scale x2 -> offset {TreeFootprint.BaseOffset(scaled):F3} m (expected 1)");
 
+        // A root that carries a rest pose has to be measured *through* it. This
+        // box is 3 m tall along its own Z and 1 m deep along its own Y, with a
+        // -90 degree X root standing it up - the mushroom prefabs exactly.
+        // Measuring inside the root would call it 0.5 m off the ground and 1.5 m
+        // wide; measured in the rest pose it is seated and 1 m wide.
+        GameObject zUp = MakeBox(new Vector3(2f, 1f, 3f), new Vector3(0f, 0f, 1.5f),
+            Vector3.one, MinusNinetyX);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(zUp)) < 0.001f,
+            $"Z-up root -> offset {TreeFootprint.BaseOffset(zUp):F3} m (expected 0, not 0.5)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(zUp) - 1f) < 0.001f,
+            $"Z-up root -> radius {TreeFootprint.Radius(zUp):F3} m (expected 1, not 1.5)");
+
+        // Scale is applied before the rest rotation, so the factor that stretches
+        // the prop's height is the one on its *own* up axis, not on world Y.
+        GameObject zUpScaled = MakeBox(new Vector3(2f, 1f, 3f), new Vector3(0f, 0f, 1f),
+            new Vector3(1f, 1f, 2f), MinusNinetyX);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(zUpScaled) - 1f) < 0.001f,
+            $"Z-up root, 2x on its up axis -> offset {TreeFootprint.BaseOffset(zUpScaled):F3} m (expected 1)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(zUpScaled) - 1f) < 0.001f,
+            $"Z-up root, 2x on its up axis -> radius {TreeFootprint.Radius(zUpScaled):F3} m (expected 1)");
+
         // Cache is keyed on the GameObject, so it has to be dropped before the
         // test objects are - otherwise it holds destroyed keys.
         TreeFootprint.ClearCache();
@@ -303,15 +325,32 @@ internal static class TreeScatterTests
         DestroyBox(hanging);
         DestroyBox(floating);
         DestroyBox(scaled);
+        DestroyBox(zUp);
+        DestroyBox(zUpScaled);
         return fails;
     }
+
+    // A -90 degree turn about X: the correction a Z-up export carries on its
+    // root, written out rather than built with Quaternion.Euler so it runs
+    // headlessly like everything else here. It takes the model's +Z to world +Y.
+    private static readonly Quaternion MinusNinetyX =
+        new Quaternion(-0.70710678f, 0f, 0f, 0.70710678f);
 
     // A box of the given size, centred at `center` in root-local space, under a
     // root scaled uniformly by `scale`.
     private static GameObject MakeBox(Vector3 size, Vector3 center, float scale)
     {
+        return MakeBox(size, center, Vector3.one * scale, Quaternion.identity);
+    }
+
+    // As above, but with the root carrying a rest pose of its own - the shape a
+    // prefab exported from a Z-up tool arrives in.
+    private static GameObject MakeBox(Vector3 size, Vector3 center, Vector3 scale,
+        Quaternion rootRotation)
+    {
         var root = new GameObject("TestProp") { hideFlags = HideFlags.HideAndDontSave };
-        root.transform.localScale = Vector3.one * scale;
+        root.transform.localScale = scale;
+        root.transform.localRotation = rootRotation;
 
         var mesh = new Mesh { hideFlags = HideFlags.HideAndDontSave };
         Vector3 e = size * 0.5f;
@@ -393,6 +432,53 @@ internal static class TreeScatterTests
                           && Mathf.Abs(new Vector4(q.x, q.y, q.z, q.w).magnitude - 1f) < 0.01f;
             fails += Check(log, finite, $"{label}: rotation stays a finite unit quaternion");
         }
+
+        return fails;
+    }
+
+    // The bug this exists to keep out: scatter assigning the placement rotation
+    // outright, which discarded the prefab's rest pose and laid every Z-up
+    // prefab - which is most of the mushrooms - flat on its side.
+    private static int RestPoseSurvivesPlacement(StringBuilder log)
+    {
+        log.AppendLine("Rest pose:");
+        int fails = 0;
+
+        Vector3 slope = new Vector3(0f, Mathf.Cos(30f * Mathf.Deg2Rad), Mathf.Sin(30f * Mathf.Deg2Rad));
+        // Where the model's own up points before the root corrects it.
+        Vector3 modelUp = Vector3.forward;
+
+        fails += Check(log, SameDirection(MinusNinetyX * modelUp, Vector3.up),
+            "the rest pose alone stands a Z-up model upright");
+
+        // On flat ground with no lean, a Z-up prop must come out plumb.
+        Vector3 flat = PropPlacement.Rotation(Vector3.up, 73f, 1f, MinusNinetyX) * modelUp;
+        fails += Check(log, SameDirection(flat, Vector3.up),
+            $"flat ground -> prop stands up, not sideways (up axis {flat})");
+
+        // On a slope it must follow the same axis the seating maths uses, or the
+        // prop leans one way and is seated along another.
+        for (float tilt = 0f; tilt <= 1.001f; tilt += 0.25f)
+        {
+            Vector3 placed = PropPlacement.Rotation(slope, 211f, tilt, MinusNinetyX) * modelUp;
+            fails += Check(log, SameDirection(placed, PropPlacement.UpAxis(slope, tilt)),
+                $"tilt {tilt:F2}: prop up axis matches the seating axis");
+        }
+
+        // The rest pose must not eat the yaw, or a field of mushrooms all face
+        // the same way.
+        Quaternion a = PropPlacement.Rotation(slope, 0f, 0.8f, MinusNinetyX);
+        Quaternion b = PropPlacement.Rotation(slope, 137f, 0.8f, MinusNinetyX);
+        float spread = Vector3.Angle(a * Vector3.right, b * Vector3.right);
+        fails += Check(log, spread > 100f,
+            $"yaw still varies the heading through a rest pose: {spread:F0} degrees apart");
+
+        // An identity rest pose has to leave the old behaviour untouched, since
+        // that is what every already-scattered upright prefab was placed with.
+        Quaternion bare = PropPlacement.Rotation(slope, 42f, 0.6f);
+        Quaternion withIdentity = PropPlacement.Rotation(slope, 42f, 0.6f, Quaternion.identity);
+        fails += Check(log, Quaternion.Angle(bare, withIdentity) < 0.001f,
+            "identity rest pose is a no-op");
 
         return fails;
     }

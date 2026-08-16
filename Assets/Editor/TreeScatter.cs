@@ -1049,10 +1049,15 @@ public class TreeScatter : EditorWindow
         instance.transform.localScale = prefab.transform.localScale * scale;
         float yaw = Random.Range(0f, 360f);
 
+        // The prefab's own root rotation is the rest pose, and for anything
+        // exported Z-up it is what stands the model upright. Yaw and lean are
+        // applied on top of it, never instead of it.
+        Quaternion rest = prefab.transform.localRotation;
+
         if (PropMode)
         {
             Vector3 up = PropPlacement.UpAxis(spot.normal, groundTilt);
-            instance.transform.rotation = PropPlacement.Rotation(spot.normal, yaw, groundTilt);
+            instance.transform.rotation = PropPlacement.Rotation(spot.normal, yaw, groundTilt, rest);
             instance.transform.position = PropPlacement.Position(
                 spot.point, up, TreeFootprint.BaseOffset(prefab) * scale, sink);
 
@@ -1063,7 +1068,7 @@ public class TreeScatter : EditorWindow
         else
         {
             instance.transform.position = spot.point;
-            instance.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            instance.transform.rotation = Quaternion.Euler(0f, yaw, 0f) * rest;
             SnapBaseToGround(instance, spot.point.y);
         }
 

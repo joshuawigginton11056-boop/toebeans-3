@@ -106,9 +106,23 @@ internal static class PropPlacement
     // different ways.
     public static Quaternion Rotation(Vector3 groundNormal, float yawDegrees, float tilt)
     {
+        return Rotation(groundNormal, yawDegrees, tilt, Quaternion.identity);
+    }
+
+    // `rest` is the prefab root's own rotation - the pose the prefab is in when
+    // you drag it into a scene. It is not decoration to be overwritten: a model
+    // authored Z-up (Blender, and most of the mushroom prefabs here) carries a
+    // -90 degree X correction on its root, and that correction is the only
+    // thing standing it upright. Scatter used to assign the placement rotation
+    // outright, which threw the correction away and laid every such prop on its
+    // side no matter how the ground maths came out. It multiplies in first, so
+    // the prop is stood up before it is yawed and leaned.
+    public static Quaternion Rotation(Vector3 groundNormal, float yawDegrees, float tilt,
+        Quaternion rest)
+    {
         float half = yawDegrees * Mathf.Deg2Rad * 0.5f;
         var yaw = new Quaternion(0f, Mathf.Sin(half), 0f, Mathf.Cos(half));
-        return Lean(groundNormal, tilt) * yaw;
+        return Lean(groundNormal, tilt) * yaw * rest;
     }
 
     // Seats the prefab so its lowest mesh point lands on the surface, then

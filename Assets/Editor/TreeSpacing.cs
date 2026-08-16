@@ -36,7 +36,8 @@ internal struct TreeMeasurement
 {
     // Half the wider horizontal axis of the mesh bounds.
     public float radius;
-    // How far the lowest mesh point sits below the pivot. Positive when the
+    // How far the lowest mesh point sits below the pivot in the prefab's rest
+    // pose, along the axis the rest pose makes vertical. Positive when the
     // mesh hangs below the pivot, negative when it floats above it. Adding
     // this along the placement up-axis puts the base exactly on the ground,
     // which is what upright placement gets from an axis-aligned bounds test
@@ -66,10 +67,19 @@ internal static class TreeFootprint
 
     // Measured from mesh bounds rather than Renderer.bounds so it needs no live
     // instance and can't read back stale for a frame after a transform change.
+    //
+    // The bounds themselves are taken in the root's own local space, scaled but
+    // unrotated. What the root's rotation decides is only which way is *up* in
+    // there - see UpInLocalSpace - because that is the one thing the caller
+    // can't recover afterwards.
     private static TreeMeasurement Measure(GameObject prefab)
     {
         Transform root = prefab.transform;
-        Matrix4x4 toRoot = root.worldToLocalMatrix;
+        // Scale rides in on the matrix rather than being multiplied back in per
+        // axis at the end: Unity applies it before the root's rotation, so this
+        // is the space the rotation actually turns, and a mirrored root can't
+        // invert the extents because the bounds grow from transformed corners.
+        Matrix4x4 toRoot = Matrix4x4.Scale(root.localScale) * root.worldToLocalMatrix;
         bool any = false;
         Bounds local = new Bounds();
 
@@ -88,18 +98,54 @@ internal static class TreeFootprint
 
         if (!any) return default;
 
-        // worldToLocalMatrix stripped the root's own scale, so put it back to
-        // land in world metres. Trees get a random Y rotation, so the wider
-        // horizontal axis is the one that can end up facing a neighbour - take
-        // that as the radius.
-        Vector3 s = root.localScale;
-        float width = local.size.x * Mathf.Abs(s.x);
-        float depth = local.size.z * Mathf.Abs(s.z);
+        Vector3 up = UpInLocalSpace(root.localRotation);
+        // Sign doesn't enter either answer - only which axis carries the height
+        // and how much of each extent leans against the up direction.
+        var reach = new Vector3(Mathf.Abs(up.x), Mathf.Abs(up.y), Mathf.Abs(up.z));
+
+        // Exact for a box: the lowest corner along `up` is the one that puts
+        // every extent on the far side of the pivot from it.
+        Vector3 e = local.extents;
+        float baseOffset = e.x * reach.x + e.y * reach.y + e.z * reach.z
+                           - Vector3.Dot(local.center, up);
+
+        // Trees get a random Y rotation, so the wider horizontal axis is the one
+        // that can end up facing a neighbour - take that as the radius. Which
+        // two axes are horizontal is what the rest pose settles: for the Z-up
+        // mushrooms it is X and Y, and reading X and Z there took the mushroom's
+        // own height for a footprint and spaced them out like trees.
+        //
+        // Snapping to the nearest axis rather than re-boxing the bounds through
+        // the rotation keeps a root that sits a fraction of a degree off plumb
+        // - the tree pack is 0.45 degrees out - from quietly widening every
+        // trunk by a slice of its own height.
+        Vector3 size = local.size;
+        float across;
+        if (reach.y >= reach.x && reach.y >= reach.z) across = Mathf.Max(size.x, size.z);
+        else if (reach.x >= reach.z) across = Mathf.Max(size.y, size.z);
+        else across = Mathf.Max(size.x, size.y);
+
         return new TreeMeasurement
         {
-            radius = 0.5f * Mathf.Max(width, depth),
-            baseOffset = -local.min.y * Mathf.Abs(s.y),
+            radius = 0.5f * across,
+            baseOffset = baseOffset,
         };
+    }
+
+    // Which direction inside the prefab's local space ends up pointing at the
+    // sky once the root's own rotation is applied - the rest pose being the
+    // shape the prefab is in when you drag it into a scene, not decoration to
+    // be measured through. A model authored Z-up (most of the mushrooms here)
+    // carries a -90 degree X correction on its root, which puts its up at local
+    // +Z; a model already Y-up gives back plain +Y and nothing changes.
+    //
+    // Any spin the rest pose has about world Y drops out on its own, since that
+    // axis is fixed by the rotation - so a prefab saved turned 50 degrees
+    // measures the same as one saved facing front, which is right: scatter is
+    // about to yaw it randomly about that very axis anyway.
+    private static Vector3 UpInLocalSpace(Quaternion rest)
+    {
+        return Quaternion.Inverse(rest) * Vector3.up;
     }
 
     private static void EncapsulateTransformed(ref Bounds acc, ref bool any, Bounds b, Matrix4x4 m)
