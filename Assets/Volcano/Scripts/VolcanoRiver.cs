@@ -224,7 +224,7 @@ namespace Volcano
             Mesh mesh = ownsCurrent ? _barrierMesh : new Mesh();
             mesh.name = "LavaBarrier_" + name;
 
-            BuildBarrierMesh(mesh, path, settings, transform);
+            BuildBarrierMesh(mesh, path, settings, transform, flow.GroundIgnore);
 
             _barrierMesh = mesh;
             // Reassigning the same mesh instance does not re-cook the collider, so clear it first.
@@ -248,7 +248,8 @@ namespace Volcano
         /// where its crest was 0.29 m BELOW the ground outside it. That is not a low wall, it is a
         /// ramp into the lava.
         /// </summary>
-        static void BuildBarrierMesh(Mesh mesh, FlowPath path, VolcanoRiverSettings s, Transform tr)
+        static void BuildBarrierMesh(Mesh mesh, FlowPath path, VolcanoRiverSettings s, Transform tr,
+                                     Transform[] ignore)
         {
             var verts = new List<Vector3>();
             var tris = new List<int>();
@@ -281,8 +282,8 @@ namespace Volcano
                 leftBase[i] = path.Ground[i, outerLeft] + right * s.barrierInset;
                 rightBase[i] = path.Ground[i, outerRight] - right * s.barrierInset;
 
-                leftTop[i] = CrestHeight(tr, leftBase[i], -right, s, scale);
-                rightTop[i] = CrestHeight(tr, rightBase[i], right, s, scale);
+                leftTop[i] = CrestHeight(tr, leftBase[i], -right, s, scale, ignore);
+                rightTop[i] = CrestHeight(tr, rightBase[i], right, s, scale, ignore);
             }
 
             for (int i = 0; i < n - 1; i++)
@@ -310,9 +311,13 @@ namespace Volcano
         /// Probed at two distances rather than one: a kart is stopped by the wall from wherever it
         /// happens to be standing, and on a lumpy hillside the metre right against the wall is not
         /// the one that decides whether the crest is reachable.
+        ///
+        /// The probe skips whatever the flow itself skips. A bridge overhead is not ground a kart
+        /// can stand on, and measuring the crest up to its deck would grow a wall to the underside
+        /// of the bridge along the whole crossing.
         /// </summary>
         static float CrestHeight(Transform tr, Vector3 postLocal, Vector3 outwardLocal,
-                                 VolcanoRiverSettings s, float scale)
+                                 VolcanoRiverSettings s, float scale, Transform[] ignore)
         {
             Vector3 post = tr.TransformPoint(postLocal);
             Vector3 outward = tr.TransformDirection(outwardLocal);
@@ -325,7 +330,7 @@ namespace Volcano
             {
                 Vector3 probe = post + outward * d;
                 RaycastHit hit;
-                if (Physics.Raycast(probe + Vector3.up * 120f, Vector3.down, out hit, 400f))
+                if (GroundProbe.Cast(probe, 120f, 280f, ~0, ignore, out hit))
                     highest = Mathf.Max(highest, hit.point.y);
             }
 

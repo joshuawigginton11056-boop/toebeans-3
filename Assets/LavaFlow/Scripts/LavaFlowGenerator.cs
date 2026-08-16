@@ -38,6 +38,13 @@ namespace LavaFlow
         [Tooltip("Raycast mode. Which layers count as ground.")]
         [SerializeField] LayerMask groundLayers = ~0;
 
+        [Tooltip("Raycast mode. Objects the flow must not mistake for ground — a bridge spanning " +
+                 "the channel, a prop standing in it. The probe sees through these and their " +
+                 "children and reads the ground underneath, so the lava passes below them instead " +
+                 "of climbing over them.\n\n" +
+                 "This flow's own colliders are always ignored; they do not need listing.")]
+        [SerializeField] Transform[] groundIgnore = new Transform[0];
+
         [Header("Path source")]
         [Tooltip("Spline mode. The spline the flow follows.")]
         [SerializeField] SplineContainer spline;
@@ -105,6 +112,7 @@ namespace LavaFlow
         FlowOutfall _outfall;
         LavaPond.LavaPondGenerator _servedPond;
         Pose3 _pondPose;
+        Transform[] _ignoreCache;
 
         /// <summary>
         /// Which generator holds which outfall id this session. Duplicating a flow copies the id
@@ -123,6 +131,26 @@ namespace LavaFlow
 
         /// <summary>The flow this one carries on from, if any.</summary>
         public LavaFlowGenerator Upstream { get { return upstream; } }
+
+        /// <summary>
+        /// Everything the ground probe must see through: the objects named on the inspector, plus
+        /// this flow itself. Self is always in the list because a flow that has already generated
+        /// owns colliders — its baked mesh, and the barrier walls standing along its banks — and a
+        /// probe that lands on last build's wall top would drape the next build over it.
+        /// </summary>
+        public Transform[] GroundIgnore
+        {
+            get
+            {
+                int n = groundIgnore != null ? groundIgnore.Length : 0;
+                if (_ignoreCache == null || _ignoreCache.Length != n + 1)
+                    _ignoreCache = new Transform[n + 1];
+
+                for (int i = 0; i < n; i++) _ignoreCache[i] = groundIgnore[i];
+                _ignoreCache[n] = transform;
+                return _ignoreCache;
+            }
+        }
 
         /// <summary>The pool this flow runs into, if any.</summary>
         public LavaPond.LavaPondGenerator Pond { get { return pond; } }
@@ -676,7 +704,7 @@ namespace LavaFlow
                     return sampler.IsValid ? (IGroundSampler)sampler : new FlatGround(transform.position.y);
 
                 case GroundMode.Raycast:
-                    return new RaycastGround(groundLayers, 50f, 4000f);
+                    return new RaycastGround(groundLayers, 50f, 4000f, GroundIgnore);
 
                 default:
                     return new FlatGround(transform.position.y);
