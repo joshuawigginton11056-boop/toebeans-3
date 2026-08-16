@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+# pre-commit - refuse to commit unresolved merge-conflict markers.
+#
+# Why this exists
+# ---------------
+# 2026-08-16: GitHub Desktop's "Stash changes" was popped over
+# Assets/Scenes/LobbyIsland.unity. .gitattributes asks for merge=unityyamlmerge,
+# but no merge driver by that name was configured, so git silently fell back to
+# its default line-based text merge and wrote conflict markers into a 14 MB
+# scene. Unity cannot parse a scene containing '<<<<<<<', so the entire map read
+# as gone.
+#
+# The unityyamlmerge driver is now configured, which stops that at the source.
+# This hook is the second line of defence: even if a marker reaches a file, it
+# never reaches a commit.
+#
+# Installed to .git/hooks/pre-commit. That directory is NOT versioned, so this
+# copy is the master - reinstall it on every clone (see Tools/hooks/install.sh).
+#
+# Deliberately committing text that contains markers? Bypass with:
+#   git commit --no-verify
+
+bad=""
+
+while IFS= read -r f; do
+	[ -n "$f" ] || continue
+	# -I skips binary files; -m1 stops at the first hit on big scenes.
+	if git show ":$f" 2>/dev/null |
+		grep -I -q -m1 -E '^(<<<<<<<|>>>>>>>)( |$)'; then
+		bad="$bad  $f
+"
+	fi
+done <<EOF
+$(git diff --cached --name-only --diff-filter=ACM)
+EOF
+
+if [ -n "$bad" ]; then
+	printf '\n' >&2
+	printf 'COMMIT BLOCKED - unresolved merge-conflict markers in:\n\n' >&2
+	printf '%s' "$bad" >&2
+	printf '\nDo NOT hand-edit the markers out of a Unity scene, prefab or asset.\n' >&2
+	printf 'Restore the file from a known-good version instead:\n\n' >&2
+	printf '  git checkout -- "<file>"\n\n' >&2
+	exit 1
+fi
+
+exit 0

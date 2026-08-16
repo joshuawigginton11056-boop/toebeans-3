@@ -1,5 +1,5 @@
 <#
-    Backs up the toebeans-3 Unity project to an external drive.
+    Backs up the toebeans-3 Unity project to a separate physical drive.
 
     Written on 2026-08-15, the day a sculpted terrain heightmap was lost. The cause was not
     a missing commit - it was relying on version control as the only copy. Two things made
@@ -24,13 +24,33 @@
 
 [CmdletBinding()]
 param(
-    [string] $Source      = "C:\Users\Work\Documents\GitHub\toebeans-3",
-    [string] $Destination = "E:\Backups\toebeans-3",
+    # Derived from this script's own location (it lives in <project>\Tools) rather than
+    # hardcoded. The project moved drives on 2026-08-16 and a hardcoded source would have
+    # silently kept backing up the old, stale copy - or thrown - without anyone noticing.
+    # Left empty and resolved in the body below - $PSScriptRoot is NOT populated yet while
+    # param() defaults are being bound, so computing it here silently yields "".
+    [string] $Source      = "",
+
+    # D: on purpose. The project now lives on E:, which is a *Simple* Storage Space - one
+    # NVMe, no redundancy. Backing up to the same physical disk the project sits on means a
+    # single drive failure takes the working copy and every backup together. D: is a
+    # separate physical disk (Toshiba HDD). Slow, which does not matter for a once-an-hour
+    # write, and independent, which does.
+    [string] $Destination = "D:\Backups\toebeans-3",
+
     [int]    $KeepSnapshots = 30
 )
 
 $ErrorActionPreference = 'Stop'
 $started = Get-Date
+
+# Resolve the project root from this script's own location (it lives in <project>\Tools),
+# so moving the project never leaves the backup pointed at a stale path.
+if ([string]::IsNullOrWhiteSpace($Source)) {
+    $scriptDir = if ($PSScriptRoot) { $PSScriptRoot }
+                 else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $Source = Split-Path -Parent $scriptDir
+}
 
 # Regenerable or machine-specific: Unity rebuilds these from Assets on next open, and they
 # are the bulk of the project on disk (Library alone is larger than everything worth saving).
@@ -47,6 +67,20 @@ $SnapshotPaths = @(
     'Assets\Volcano', 'Assets\LowPolyTerrain', 'Assets\Kart', 'Assets\FrozenLake',
     'Assets\Barriers', 'Assets\GeneratedTrees', 'Assets\LavaFlow', 'Assets\LavaPond',
     'Assets\Editor', 'Assets\Scripts', 'Assets\Prefabs', 'Assets\Shaders',
+    # Added 2026-08-16. All of these were already caught by the mirror, but the mirror
+    # only ever holds the current state - it cannot answer "restore it as it was". These
+    # belong in the dated layer too:
+    #   Terrain      the rebuilt LobbyIsland_Terrain.asset. Regenerable from the shaper
+    #                seed in the scene, but that is a rebuild-and-reverify job, not a
+    #                restore, and losing a heightmap is the reason this script exists.
+    #   GeneratedModels  Blender pipeline output. Untracked in git, so a backup is the
+    #                only copy that exists anywhere.
+    #   Settings     hand-tuned URP render pipeline + volume profiles.
+    #   Tools        this script and the git hooks. Backing up everything except the
+    #                thing that does the backing up is a poor joke to discover later.
+    'Assets\Terrain', 'Assets\GeneratedModels', 'Assets\Settings',
+    'Assets\InputSystem_Actions.inputactions',
+    'Tools',
     'ProjectSettings', 'Packages',
     '.gitattributes', '.gitignore'
 )

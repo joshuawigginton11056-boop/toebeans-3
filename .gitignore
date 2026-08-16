@@ -130,3 +130,15 @@ InitTestScene*.unity*
 /[Aa]ssets/YughuesFreeGroundMaterials.meta
 /[Aa]ssets/MaxiBrut/
 /[Aa]ssets/MaxiBrut.meta
+
+# Added 2026-08-16. Verified the same way, but without the Editor: every guid in
+# every .meta under these two packs (109 of them) was checked against the guids
+# referenced by Assets/Scenes/LobbyIsland.unity, and against every file tracked in
+# HEAD. Zero hits in both cases, and nothing from either pack is in HEAD.
+#
+# These two were the only large packs left unignored, which is why GitHub Desktop
+# offered 3,101 files for staging after a stash pop went wrong.
+/[Aa]ssets/ALP_Assets/
+/[Aa]ssets/ALP_Assets.meta
+/[Aa]ssets/All In One - Heightmaps/
+/[Aa]ssets/All In One - Heightmaps.meta
