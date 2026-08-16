@@ -190,3 +190,13 @@ LightingData.asset     binary
 # here without checking round-trip integrity on a binary .asset first.
 # ---------------------------------------------------------------------------
 *.asset                 merge=unityyamlmerge linguist-language=yaml
+
+# Known-binary .asset files, declared rather than left to auto-detection.
+#
+# Auto-detect gets these right today - they open with NUL bytes, so git classifies
+# them as binary and leaves them alone. But that is a heuristic reading the first
+# 8000 bytes, and core.autocrlf is true on this project's machines. For the one
+# file type that has already been destroyed once, say it outright.
+#
+# Add new TerrainData assets here as they are created.
+/Assets/Terrain/LobbyIsland_Terrain.asset  -text

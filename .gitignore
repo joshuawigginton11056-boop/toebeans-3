@@ -51,6 +51,10 @@ ExportedObj/
 *.csproj
 *.unityproj
 *.sln
+# The newer XML solution format. The upstream template predates it, so it slips
+# through *.sln and gets committed - a solution referencing Assembly-CSharp.csproj
+# and friends, every one of which is ignored above and regenerated per machine.
+*.slnx
 *.suo
 *.tmp
 *.user
