@@ -31,26 +31,42 @@ internal struct TreeSpacingRule
     }
 }
 
-// Footprint radius of a prefab at scale 1, in world metres.
+// Footprint of a prefab at scale 1, in world metres.
+internal struct TreeMeasurement
+{
+    // Half the wider horizontal axis of the mesh bounds.
+    public float radius;
+    // How far the lowest mesh point sits below the pivot. Positive when the
+    // mesh hangs below the pivot, negative when it floats above it. Adding
+    // this along the placement up-axis puts the base exactly on the ground,
+    // which is what upright placement gets from an axis-aligned bounds test
+    // but a tilted prop cannot.
+    public float baseOffset;
+}
+
 internal static class TreeFootprint
 {
-    private static readonly Dictionary<GameObject, float> cache =
-        new Dictionary<GameObject, float>();
+    private static readonly Dictionary<GameObject, TreeMeasurement> cache =
+        new Dictionary<GameObject, TreeMeasurement>();
 
     public static void ClearCache() => cache.Clear();
 
-    public static float Radius(GameObject prefab)
+    public static float Radius(GameObject prefab) => Of(prefab).radius;
+
+    public static float BaseOffset(GameObject prefab) => Of(prefab).baseOffset;
+
+    public static TreeMeasurement Of(GameObject prefab)
     {
-        if (prefab == null) return 0f;
-        if (cache.TryGetValue(prefab, out float cached)) return cached;
-        float measured = Measure(prefab);
+        if (prefab == null) return default;
+        if (cache.TryGetValue(prefab, out TreeMeasurement cached)) return cached;
+        TreeMeasurement measured = Measure(prefab);
         cache[prefab] = measured;
         return measured;
     }
 
     // Measured from mesh bounds rather than Renderer.bounds so it needs no live
     // instance and can't read back stale for a frame after a transform change.
-    private static float Measure(GameObject prefab)
+    private static TreeMeasurement Measure(GameObject prefab)
     {
         Transform root = prefab.transform;
         Matrix4x4 toRoot = root.worldToLocalMatrix;
@@ -70,7 +86,7 @@ internal static class TreeFootprint
                 toRoot * smr.transform.localToWorldMatrix);
         }
 
-        if (!any) return 0f;
+        if (!any) return default;
 
         // worldToLocalMatrix stripped the root's own scale, so put it back to
         // land in world metres. Trees get a random Y rotation, so the wider
@@ -79,7 +95,11 @@ internal static class TreeFootprint
         Vector3 s = root.localScale;
         float width = local.size.x * Mathf.Abs(s.x);
         float depth = local.size.z * Mathf.Abs(s.z);
-        return 0.5f * Mathf.Max(width, depth);
+        return new TreeMeasurement
+        {
+            radius = 0.5f * Mathf.Max(width, depth),
+            baseOffset = -local.min.y * Mathf.Abs(s.y),
+        };
     }
 
     private static void EncapsulateTransformed(ref Bounds acc, ref bool any, Bounds b, Matrix4x4 m)

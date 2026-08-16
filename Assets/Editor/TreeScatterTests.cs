@@ -24,6 +24,11 @@ internal static class TreeScatterTests
         failures += GridMatchesBruteForce(log);
         failures += AcceptedPlacementsNeverOverlap(log);
         failures += FixedModeIgnoresCanopySize(log);
+        failures += BaseOffsetFindsLowestMeshPoint(log);
+        failures += PropOrientationFollowsGround(log);
+        failures += PropSeatingLandsOnSurface(log);
+        failures += ZeroSpacingAllowsOverlap(log);
+        failures += BrushRayWindowStaysLocal(log);
 
         if (failures == 0)
             Debug.Log("Tree scatter self-test PASSED\n" + log);
@@ -35,6 +40,19 @@ internal static class TreeScatterTests
     {
         log.AppendLine((condition ? "  PASS  " : "  FAIL  ") + what);
         return condition ? 0 : 1;
+    }
+
+    // Vector3.Angle goes through acos, which throws away almost all of its
+    // precision near zero: two directions agreeing to the last float bit still
+    // measure ~0.02 degrees apart, and whether they do depends on the slope.
+    // Compare the perpendicular component instead - it is the sine of the
+    // angle, and it stays well conditioned exactly where acos doesn't. (Cross
+    // alone can't tell parallel from opposed, hence the dot.)
+    private static bool SameDirection(Vector3 a, Vector3 b)
+    {
+        Vector3 na = a.normalized;
+        Vector3 nb = b.normalized;
+        return Vector3.Cross(na, nb).magnitude < 1e-5f && Vector3.Dot(na, nb) > 0f;
     }
 
     private static GameObject Load(string guid)
@@ -109,6 +127,9 @@ internal static class TreeScatterTests
             new TreeSpacingRule { mode = TreeSpacingMode.Canopy, canopySpacing = 1f, extraGap = 0f },
             new TreeSpacingRule { mode = TreeSpacingMode.Canopy, canopySpacing = 3f, extraGap = 4f },
             new TreeSpacingRule { mode = TreeSpacingMode.Canopy, canopySpacing = 0.25f, extraGap = 0f },
+            // Prop mode opens the dial down to zero, which has to mean "place
+            // anywhere" rather than "reject everything".
+            new TreeSpacingRule { mode = TreeSpacingMode.Canopy, canopySpacing = 0f, extraGap = 0f },
             new TreeSpacingRule { mode = TreeSpacingMode.FixedDistance, fixedDistance = 12f },
         };
 
@@ -237,6 +258,242 @@ internal static class TreeScatterTests
             accepted++;
         }
         return accepted;
+    }
+
+    // ------------------------------------------------------------ prop mode
+
+    // Upright placement can seat a prefab off its world-axis-aligned bounds; a
+    // tilted one cannot, so prop mode needs to know how far the mesh hangs
+    // below the pivot. Measured on built-in-place geometry rather than a
+    // project prefab so the check holds whether or not the art packs are
+    // present (they're excluded from the repo).
+    private static int BaseOffsetFindsLowestMeshPoint(StringBuilder log)
+    {
+        log.AppendLine("Base offset:");
+        int fails = 0;
+
+        // Pivot at the base: nothing hangs below it.
+        GameObject onBase = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 1.5f, 0f), 1f);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(onBase)) < 0.001f,
+            $"pivot at mesh base -> offset {TreeFootprint.BaseOffset(onBase):F3} m (expected 0)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(onBase) - 1f) < 0.001f,
+            $"radius still the wider horizontal half-axis: {TreeFootprint.Radius(onBase):F3} m (expected 1)");
+
+        // Mesh hangs 0.5 m below the pivot - the prop has to rise by that much.
+        GameObject hanging = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 1f, 0f), 1f);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(hanging) - 0.5f) < 0.001f,
+            $"mesh below pivot -> offset {TreeFootprint.BaseOffset(hanging):F3} m (expected 0.5)");
+
+        // Mesh floats 0.5 m above the pivot - a negative offset, which has to
+        // survive as a negative rather than being clamped, or the prop hovers.
+        GameObject floating = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 2f, 0f), 1f);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(floating) + 0.5f) < 0.001f,
+            $"mesh above pivot -> offset {TreeFootprint.BaseOffset(floating):F3} m (expected -0.5)");
+
+        // Root scale is baked into the measurement, exactly as Radius does it,
+        // because callers multiply by the per-instance scale on top.
+        GameObject scaled = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 1f, 0f), 2f);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(scaled) - 1f) < 0.001f,
+            $"root scale x2 -> offset {TreeFootprint.BaseOffset(scaled):F3} m (expected 1)");
+
+        // Cache is keyed on the GameObject, so it has to be dropped before the
+        // test objects are - otherwise it holds destroyed keys.
+        TreeFootprint.ClearCache();
+        DestroyBox(onBase);
+        DestroyBox(hanging);
+        DestroyBox(floating);
+        DestroyBox(scaled);
+        return fails;
+    }
+
+    // A box of the given size, centred at `center` in root-local space, under a
+    // root scaled uniformly by `scale`.
+    private static GameObject MakeBox(Vector3 size, Vector3 center, float scale)
+    {
+        var root = new GameObject("TestProp") { hideFlags = HideFlags.HideAndDontSave };
+        root.transform.localScale = Vector3.one * scale;
+
+        var mesh = new Mesh { hideFlags = HideFlags.HideAndDontSave };
+        Vector3 e = size * 0.5f;
+        var verts = new Vector3[8];
+        for (int i = 0; i < 8; i++)
+        {
+            verts[i] = center + new Vector3(
+                (i & 1) == 0 ? -e.x : e.x,
+                (i & 2) == 0 ? -e.y : e.y,
+                (i & 4) == 0 ? -e.z : e.z);
+        }
+        // Assigning vertices is what recomputes mesh.bounds, which is the only
+        // thing the measurement reads - no triangles needed.
+        mesh.vertices = verts;
+
+        root.AddComponent<MeshFilter>().sharedMesh = mesh;
+        return root;
+    }
+
+    // Meshes aren't collected with the GameObject holding them, so a run of the
+    // self-test would otherwise leak one per box.
+    private static void DestroyBox(GameObject box)
+    {
+        MeshFilter mf = box.GetComponent<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null) Object.DestroyImmediate(mf.sharedMesh);
+        Object.DestroyImmediate(box);
+    }
+
+    // The lean must come from the ground and nothing else. The trap here is
+    // rotation order: yawing after the lean turns a random heading into a
+    // random *tip direction*, so identical props on one slope fall different
+    // ways instead of all leaning downhill.
+    private static int PropOrientationFollowsGround(StringBuilder log)
+    {
+        log.AppendLine("Prop orientation:");
+        int fails = 0;
+
+        // A 30 degree bank, written out rather than built with Quaternion.Euler
+        // so this check runs headlessly like the maths it exercises.
+        Vector3 slope = new Vector3(0f, Mathf.Cos(30f * Mathf.Deg2Rad), Mathf.Sin(30f * Mathf.Deg2Rad));
+
+        fails += Check(log, SameDirection(PropPlacement.UpAxis(slope, 0f), Vector3.up),
+            "tilt 0 stands the prop plumb, like a tree");
+        fails += Check(log, SameDirection(PropPlacement.UpAxis(slope, 1f), slope),
+            "tilt 1 lays the prop flush with the ground");
+
+        // Far enough from zero that acos is well behaved, so this one can stay
+        // an angle - and it has to, since the value itself is the point.
+        float halfway = Vector3.Angle(PropPlacement.UpAxis(slope, 0.5f), Vector3.up);
+        fails += Check(log, Mathf.Abs(halfway - 15f) < 0.5f,
+            $"tilt 0.5 leans halfway: {halfway:F1} degrees into a 30 degree slope");
+
+        Vector3 upA = PropPlacement.Rotation(slope, 0f, 0.8f) * Vector3.up;
+        Vector3 upB = PropPlacement.Rotation(slope, 137f, 0.8f) * Vector3.up;
+        fails += Check(log, SameDirection(upA, upB),
+            "lean direction is independent of the random yaw (rotation order is right)");
+
+        // Two props on the same slope that lean the same way must still face
+        // different directions, or the yaw has been swallowed entirely.
+        Quaternion rotA = PropPlacement.Rotation(slope, 0f, 0.8f);
+        Quaternion rotB = PropPlacement.Rotation(slope, 137f, 0.8f);
+        float headingSpread = Vector3.Angle(rotA * Vector3.forward, rotB * Vector3.forward);
+        fails += Check(log, headingSpread > 100f,
+            $"yaw still varies the heading: {headingSpread:F0} degrees apart");
+
+        // Degenerate normals: flat ground, and a normal opposed to up. Neither
+        // may produce a NaN quaternion - one NaN transform corrupts a whole
+        // stroke and the errors surface far from here.
+        foreach ((string label, Vector3 n) in new[]
+        {
+            ("flat ground", Vector3.up),
+            ("fully inverted", Vector3.down),
+            ("vertical wall", Vector3.forward),
+            ("zero-length normal", Vector3.zero),
+        })
+        {
+            Quaternion q = PropPlacement.Rotation(n, 45f, 1f);
+            bool finite = !float.IsNaN(q.x) && !float.IsNaN(q.y) && !float.IsNaN(q.z) && !float.IsNaN(q.w)
+                          && Mathf.Abs(new Vector4(q.x, q.y, q.z, q.w).magnitude - 1f) < 0.01f;
+            fails += Check(log, finite, $"{label}: rotation stays a finite unit quaternion");
+        }
+
+        return fails;
+    }
+
+    // Seating is measured along the leaned axis, not world Y. On a slope those
+    // differ, and using world Y is what leaves a tilted prop floating on its
+    // uphill side.
+    private static int PropSeatingLandsOnSurface(StringBuilder log)
+    {
+        log.AppendLine("Prop seating:");
+        int fails = 0;
+
+        Vector3 surface = new Vector3(10f, 4f, -3f);
+        Vector3 slope = new Vector3(0f, Mathf.Cos(25f * Mathf.Deg2Rad), Mathf.Sin(25f * Mathf.Deg2Rad));
+        Vector3 up = PropPlacement.UpAxis(slope, 1f);
+
+        // A prefab whose mesh hangs 0.4 m below its pivot has to rise 0.4 m
+        // along the leaned axis for its base to touch.
+        Vector3 seated = PropPlacement.Position(surface, up, 0.4f, 0f);
+        fails += Check(log, Mathf.Abs(Vector3.Distance(seated, surface) - 0.4f) < 0.001f,
+            "base offset lifts the prop by exactly its overhang");
+        fails += Check(log, SameDirection(seated - surface, up),
+            "the lift runs along the leaned axis, not along world Y");
+        fails += Check(log, !SameDirection(seated - surface, Vector3.up),
+            "...and that axis is genuinely not world Y on a 25 degree slope");
+
+        // Sink pushes into the ground, and must be able to take the prop below
+        // the surface rather than clamping at it.
+        Vector3 sunk = PropPlacement.Position(surface, up, 0.4f, 0.6f);
+        fails += Check(log, Vector3.Dot(sunk - surface, up) < 0f,
+            $"sink 0.6 m beds the prop below the surface (offset {Vector3.Dot(sunk - surface, up):F2} m)");
+
+        Vector3 flat = PropPlacement.Position(surface, Vector3.up, 0f, 0f);
+        fails += Check(log, Vector3.Distance(flat, surface) < 0.001f,
+            "a base-pivoted prefab on flat ground lands exactly on the hit point");
+
+        return fails;
+    }
+
+    // The point of prop mode's spacing floor: grass and mushroom clumps read as
+    // a polka-dot pattern if their footprints are kept apart, so zero has to
+    // switch the check off rather than reject everything.
+    private static int ZeroSpacingAllowsOverlap(StringBuilder log)
+    {
+        log.AppendLine("Zero spacing:");
+        var rule = new TreeSpacingRule { mode = TreeSpacingMode.Canopy, canopySpacing = 0f, extraGap = 0f };
+        var grid = new TreeOccupancyGrid();
+        grid.Reset(2f);
+
+        Random.InitState(7);
+        int accepted = 0;
+        for (int i = 0; i < 500; i++)
+        {
+            // Deliberately piled into a 1 m spot - every candidate overlaps.
+            float x = Random.Range(0f, 1f);
+            float z = Random.Range(0f, 1f);
+            float radius = Random.Range(0.2f, 1.5f);
+            if (!grid.IsClear(x, z, radius, rule.Required(radius, grid.MaxRadius), rule)) continue;
+            grid.Add(new Vector3(x, 0f, z), radius);
+            accepted++;
+        }
+
+        return Check(log, accepted == 500,
+            $"{accepted}/500 fully overlapping props accepted with spacing at 0");
+    }
+
+    // Props find ground by casting down. Casting from the top of the world
+    // would be wrong wherever the map has something overhead - a cave, or the
+    // volcano's passage - because the topmost surface is the roof, not the
+    // floor the cursor is on. The brush window has to stay near the brush.
+    private static int BrushRayWindowStaysLocal(StringBuilder log)
+    {
+        log.AppendLine("Ray window:");
+        int fails = 0;
+
+        // Painting a cave floor at y=100 with a roof 40 m overhead.
+        const float floorY = 100f;
+        const float roofY = 140f;
+        PropRayWindow brush = PropRayWindow.AroundBrush(floorY, 5f);
+
+        fails += Check(log, brush.startY < roofY,
+            $"brush window starts at {brush.startY:F0} m, below a roof at {roofY:F0} m");
+        fails += Check(log, brush.startY > floorY && brush.BottomY < floorY,
+            $"brush window brackets the floor it was opened on ({brush.BottomY:F0} to {brush.startY:F0} m)");
+
+        // A big brush on a steep face has to reach ground well below its centre.
+        PropRayWindow wide = PropRayWindow.AroundBrush(floorY, 30f);
+        fails += Check(log, floorY - wide.BottomY >= 30f * 2f,
+            $"a 30 m brush reaches {floorY - wide.BottomY:F0} m below its centre for steep ground");
+
+        // Whole-map scatter has no cursor, so it must span everything.
+        var terrainPos = new Vector3(0f, 12f, 0f);
+        const float terrainHeight = 600f;
+        PropRayWindow map = PropRayWindow.WholeMap(terrainPos, terrainHeight);
+        fails += Check(log, map.BottomY <= terrainPos.y && map.startY >= terrainPos.y + terrainHeight,
+            $"whole-map window spans {map.BottomY:F0} to {map.startY:F0} m over a " +
+            $"{terrainHeight:F0} m terrain based at {terrainPos.y:F0} m");
+        fails += Check(log, map.startY - (terrainPos.y + terrainHeight) >= PropRayWindow.Headroom,
+            "whole-map window clears the terrain top by the full headroom, for meshes above it");
+
+        return fails;
     }
 
     // Fixed mode is kept for same-size lists; it must stay size-blind so the
