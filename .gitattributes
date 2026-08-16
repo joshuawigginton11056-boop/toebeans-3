@@ -14,6 +14,14 @@
 # Optionally collapse Unity YAML files on GitHub diffs
 # [attr]unity-yaml        merge=unityyamlmerge text linguist-language=yaml linguist-generated
 
+# Shell scripts must keep LF even on Windows. core.autocrlf is true on this
+# project's machines, so without this a fresh checkout gives the git hooks
+# CRLF endings, the shebang becomes "#!/bin/sh\r", and Git Bash fails them with
+# "bad interpreter: No such file or directory" - which reads as a missing shell
+# rather than a line-ending problem.
+*.sh                    text eol=lf
+/Tools/hooks/pre-commit  text eol=lf
+
 # Unity source files
 *.cginc                 text
 *.compute               text linguist-language=hlsl
