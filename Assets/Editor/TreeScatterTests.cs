@@ -26,6 +26,7 @@ internal static class TreeScatterTests
         failures += FixedModeIgnoresCanopySize(log);
         failures += BaseOffsetFindsLowestMeshPoint(log);
         failures += PropOrientationFollowsGround(log);
+        failures += PrefabRootRotationSurvives(log);
         failures += PropSeatingLandsOnSurface(log);
         failures += ZeroSpacingAllowsOverlap(log);
         failures += BrushRayWindowStaysLocal(log);
@@ -85,7 +86,10 @@ internal static class TreeScatterTests
                 fails += Check(log, false, $"prefab {c.guid} missing from project");
                 continue;
             }
-            float width = TreeFootprint.Radius(p) * 2f;
+            // Tree prefabs, so root-local: these expectations were measured
+            // with the root's leftover scene pose stripped, which is also how
+            // tree mode places them.
+            float width = TreeFootprint.Radius(p, FootprintSpace.RootLocal) * 2f;
             bool ok = Mathf.Abs(width - c.expectedWidth) < 0.05f;
             fails += Check(log, ok,
                 $"{p.name} width {width:F2} m (expected ~{c.expectedWidth:F2} m, " +
@@ -108,7 +112,7 @@ internal static class TreeScatterTests
         {
             GameObject p = Load(guid);
             if (p == null) continue;
-            fails += Check(log, TreeFootprint.Radius(p) <= 0.0001f,
+            fails += Check(log, TreeFootprint.Radius(p, FootprintSpace.RootLocal) <= 0.0001f,
                 $"{p.name} measures zero and will be skipped");
         }
         return fails;
@@ -271,30 +275,62 @@ internal static class TreeScatterTests
     {
         log.AppendLine("Base offset:");
         int fails = 0;
+        // Base offset only serves prop seating, so it's measured the way prop
+        // mode places: with the prefab's own root rotation applied.
+        const FootprintSpace prop = FootprintSpace.Prefab;
 
         // Pivot at the base: nothing hangs below it.
         GameObject onBase = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 1.5f, 0f), 1f);
-        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(onBase)) < 0.001f,
-            $"pivot at mesh base -> offset {TreeFootprint.BaseOffset(onBase):F3} m (expected 0)");
-        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(onBase) - 1f) < 0.001f,
-            $"radius still the wider horizontal half-axis: {TreeFootprint.Radius(onBase):F3} m (expected 1)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(onBase, prop)) < 0.001f,
+            $"pivot at mesh base -> offset {TreeFootprint.BaseOffset(onBase, prop):F3} m (expected 0)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(onBase, prop) - 1f) < 0.001f,
+            $"radius still the wider horizontal half-axis: {TreeFootprint.Radius(onBase, prop):F3} m (expected 1)");
 
         // Mesh hangs 0.5 m below the pivot - the prop has to rise by that much.
         GameObject hanging = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 1f, 0f), 1f);
-        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(hanging) - 0.5f) < 0.001f,
-            $"mesh below pivot -> offset {TreeFootprint.BaseOffset(hanging):F3} m (expected 0.5)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(hanging, prop) - 0.5f) < 0.001f,
+            $"mesh below pivot -> offset {TreeFootprint.BaseOffset(hanging, prop):F3} m (expected 0.5)");
 
         // Mesh floats 0.5 m above the pivot - a negative offset, which has to
         // survive as a negative rather than being clamped, or the prop hovers.
         GameObject floating = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 2f, 0f), 1f);
-        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(floating) + 0.5f) < 0.001f,
-            $"mesh above pivot -> offset {TreeFootprint.BaseOffset(floating):F3} m (expected -0.5)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(floating, prop) + 0.5f) < 0.001f,
+            $"mesh above pivot -> offset {TreeFootprint.BaseOffset(floating, prop):F3} m (expected -0.5)");
 
         // Root scale is baked into the measurement, exactly as Radius does it,
         // because callers multiply by the per-instance scale on top.
         GameObject scaled = MakeBox(new Vector3(2f, 3f, 1f), new Vector3(0f, 1f, 0f), 2f);
-        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(scaled) - 1f) < 0.001f,
-            $"root scale x2 -> offset {TreeFootprint.BaseOffset(scaled):F3} m (expected 1)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(scaled, prop) - 1f) < 0.001f,
+            $"root scale x2 -> offset {TreeFootprint.BaseOffset(scaled, prop):F3} m (expected 1)");
+
+        // A model authored Z-up, stood upright by a -90 degree X rotation on the
+        // prefab root - the shape every mushroom prefab in the project has. Its
+        // height runs along mesh +Z: 3 m tall on a 2 x 1 m footprint. A
+        // measurement that drops the root rotation reads that as a 1 m-tall
+        // model on a 2 x 3 m footprint, giving 0.5 m and 1.5 m here.
+        var zUp = new Quaternion(-0.7071068f, 0f, 0f, 0.7071067f);
+        GameObject standing = MakeBox(new Vector3(2f, 1f, 3f), new Vector3(0f, 0f, 1.5f), 1f, zUp);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(standing, prop)) < 0.001f,
+            $"Z-up prefab, pivot at base -> offset {TreeFootprint.BaseOffset(standing, prop):F3} m (expected 0)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(standing, prop) - 1f) < 0.001f,
+            $"Z-up prefab measures its standing footprint: {TreeFootprint.Radius(standing, prop):F3} m (expected 1)");
+
+        // The same model with its mesh hanging half a metre below the pivot,
+        // measured along the axis the prop will actually stand on.
+        GameObject standingHang = MakeBox(new Vector3(2f, 1f, 3f), new Vector3(0f, 0f, 1f), 1f, zUp);
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(standingHang, prop) - 0.5f) < 0.001f,
+            $"Z-up prefab, mesh below pivot -> offset {TreeFootprint.BaseOffset(standingHang, prop):F3} m (expected 0.5)");
+
+        // Tree mode places the prefab's root rotation away, so its footprint has
+        // to keep measuring as if that rotation weren't there - otherwise this
+        // fix would quietly resize every tree in the dead-tree pack, one of
+        // which roots at a 51 degree yaw.
+        fails += Check(log,
+            Mathf.Abs(TreeFootprint.BaseOffset(standing, FootprintSpace.RootLocal) - 0.5f) < 0.001f &&
+            Mathf.Abs(TreeFootprint.Radius(standing, FootprintSpace.RootLocal) - 1.5f) < 0.001f,
+            $"root-local space still ignores the root rotation: offset " +
+            $"{TreeFootprint.BaseOffset(standing, FootprintSpace.RootLocal):F3} m, radius " +
+            $"{TreeFootprint.Radius(standing, FootprintSpace.RootLocal):F3} m (expected 0.5 and 1.5)");
 
         // Cache is keyed on the GameObject, so it has to be dropped before the
         // test objects are - otherwise it holds destroyed keys.
@@ -303,15 +339,26 @@ internal static class TreeScatterTests
         DestroyBox(hanging);
         DestroyBox(floating);
         DestroyBox(scaled);
+        DestroyBox(standing);
+        DestroyBox(standingHang);
         return fails;
     }
 
-    // A box of the given size, centred at `center` in root-local space, under a
-    // root scaled uniformly by `scale`.
+    // A box of the given size, centred at `center` in mesh space, under a root
+    // scaled uniformly by `scale`.
     private static GameObject MakeBox(Vector3 size, Vector3 center, float scale)
+    {
+        return MakeBox(size, center, scale, Quaternion.identity);
+    }
+
+    // ...with a rotation on the root, as an imported model carries when its
+    // source was authored in a Z-up package.
+    private static GameObject MakeBox(Vector3 size, Vector3 center, float scale,
+        Quaternion rootRotation)
     {
         var root = new GameObject("TestProp") { hideFlags = HideFlags.HideAndDontSave };
         root.transform.localScale = Vector3.one * scale;
+        root.transform.localRotation = rootRotation;
 
         var mesh = new Mesh { hideFlags = HideFlags.HideAndDontSave };
         Vector3 e = size * 0.5f;
@@ -393,6 +440,53 @@ internal static class TreeScatterTests
                           && Mathf.Abs(new Vector4(q.x, q.y, q.z, q.w).magnitude - 1f) < 0.01f;
             fails += Check(log, finite, $"{label}: rotation stays a finite unit quaternion");
         }
+
+        return fails;
+    }
+
+    // The prefab's own root rotation has to survive placement. Nature packs
+    // author models Z-up and stand them upright with a -90 degree X rotation on
+    // the prefab root; that rotation is load-bearing, and a placement that
+    // assigns an absolute rotation instead of composing with it lays every such
+    // prop on its side. Trees hid this for a while by rooting near identity.
+    private static int PrefabRootRotationSurvives(StringBuilder log)
+    {
+        log.AppendLine("Prefab root rotation:");
+        int fails = 0;
+
+        // The literal the mushroom prefabs carry: -90 degrees about X. Written
+        // out rather than built with Quaternion.Euler, like the slopes above.
+        var zUp = new Quaternion(-0.7071068f, 0f, 0f, 0.7071067f);
+        // Which way is up for the model underneath that correction.
+        Vector3 modelUp = Vector3.forward;
+
+        Quaternion flat = PropPlacement.Rotation(Vector3.up, 137f, 0.8f, zUp);
+        fails += Check(log, SameDirection(flat * modelUp, Vector3.up),
+            "a Z-up prefab still stands upright on flat ground");
+
+        Vector3 slope = new Vector3(0f, Mathf.Cos(20f * Mathf.Deg2Rad), Mathf.Sin(20f * Mathf.Deg2Rad));
+        Quaternion leaned = PropPlacement.Rotation(slope, 137f, 1f, zUp);
+        fails += Check(log, SameDirection(leaned * modelUp, slope),
+            "...and lies flush with a 20 degree slope at tilt 1");
+
+        // The axis the seating maths lifts along has to be the axis the model
+        // actually stands on, or the prop floats or sinks by its own height.
+        fails += Check(log, SameDirection(leaned * modelUp, PropPlacement.UpAxis(slope, 1f)),
+            "the seating axis matches where the placed model's up ends up");
+
+        // The correction must not eat the yaw: props sharing a prefab still
+        // have to face different ways. Model +X is the axis the -90 X rotation
+        // leaves alone, so it stays a usable heading to compare.
+        float spread = Vector3.Angle(
+            PropPlacement.Rotation(slope, 0f, 0.8f, zUp) * Vector3.right,
+            PropPlacement.Rotation(slope, 137f, 0.8f, zUp) * Vector3.right);
+        fails += Check(log, spread > 100f,
+            $"yaw still varies the heading through the correction: {spread:F0} degrees apart");
+
+        // An identity-rooted prefab - a tree - places exactly as it did before.
+        fails += Check(log, PropPlacement.Rotation(slope, 137f, 0.8f) ==
+                            PropPlacement.Rotation(slope, 137f, 0.8f, Quaternion.identity),
+            "identity prefab rotation leaves placement unchanged");
 
         return fails;
     }

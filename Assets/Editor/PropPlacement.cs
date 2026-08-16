@@ -94,7 +94,12 @@ internal static class PropPlacement
         return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(half));
     }
 
-    // The axis the instance ends up standing on.
+    // The axis the instance ends up standing on. This is the placement frame's
+    // up, and it is where the prefab's own up lands once its root rotation is
+    // composed in - so it stays the axis to seat along, provided the footprint
+    // was measured through FootprintSpace.Prefab, which applies that same
+    // rotation. Seat against a root-local measurement and the two disagree by
+    // however far the prefab root is rotated.
     public static Vector3 UpAxis(Vector3 groundNormal, float tilt)
     {
         return Lean(groundNormal, tilt) * Vector3.up;
@@ -106,9 +111,21 @@ internal static class PropPlacement
     // different ways.
     public static Quaternion Rotation(Vector3 groundNormal, float yawDegrees, float tilt)
     {
+        return Rotation(groundNormal, yawDegrees, tilt, Quaternion.identity);
+    }
+
+    // The prefab's own root rotation rides underneath the placement, rather
+    // than being replaced by it. Several of the art packs author their models
+    // Z-up and stand them upright with a -90 degree X rotation on the prefab
+    // root - every mushroom in MedievalTownExteriors is built that way. That
+    // rotation is the only thing holding the model upright, so overwriting it
+    // lays the prop on its side no matter what the ground is doing.
+    public static Quaternion Rotation(Vector3 groundNormal, float yawDegrees, float tilt,
+        Quaternion prefabRotation)
+    {
         float half = yawDegrees * Mathf.Deg2Rad * 0.5f;
         var yaw = new Quaternion(0f, Mathf.Sin(half), 0f, Mathf.Cos(half));
-        return Lean(groundNormal, tilt) * yaw;
+        return Lean(groundNormal, tilt) * yaw * prefabRotation;
     }
 
     // Seats the prefab so its lowest mesh point lands on the surface, then
