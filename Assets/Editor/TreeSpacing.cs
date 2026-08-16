@@ -31,6 +31,25 @@ internal struct TreeSpacingRule
     }
 }
 
+// Which of a prefab's own transform the footprint is measured through. It has
+// to match how the placement orients the instance, or the numbers describe a
+// shape that never gets placed.
+internal enum FootprintSpace
+{
+    // The root's rotation stripped. Tree placement discards that rotation, so
+    // the footprint does too. The dead-tree pack's roots hold the pose each
+    // tree had in the scene it was extracted from - one carries a 51 degree
+    // yaw - and honouring scene leftovers would only inflate the spacing.
+    RootLocal = 0,
+
+    // The root's rotation applied. Prop placement composes with it, because
+    // models authored Z-up are stood upright by a -90 degree X rotation on the
+    // prefab root and nothing else. Measured in root-local space, such a
+    // prefab reports its depth where its height belongs - and no amount of
+    // correct seating maths recovers from that.
+    Prefab = 1,
+}
+
 // Footprint of a prefab at scale 1, in world metres.
 internal struct TreeMeasurement
 {
@@ -46,59 +65,73 @@ internal struct TreeMeasurement
 
 internal static class TreeFootprint
 {
-    private static readonly Dictionary<GameObject, TreeMeasurement> cache =
-        new Dictionary<GameObject, TreeMeasurement>();
+    // One cache per space - the same prefab measures differently in each, and
+    // a brush switching modes must not be handed the other mode's numbers.
+    private static readonly Dictionary<GameObject, TreeMeasurement>[] caches =
+    {
+        new Dictionary<GameObject, TreeMeasurement>(),
+        new Dictionary<GameObject, TreeMeasurement>(),
+    };
 
-    public static void ClearCache() => cache.Clear();
+    public static void ClearCache()
+    {
+        foreach (Dictionary<GameObject, TreeMeasurement> cache in caches) cache.Clear();
+    }
 
-    public static float Radius(GameObject prefab) => Of(prefab).radius;
+    public static float Radius(GameObject prefab, FootprintSpace space) => Of(prefab, space).radius;
 
-    public static float BaseOffset(GameObject prefab) => Of(prefab).baseOffset;
+    public static float BaseOffset(GameObject prefab, FootprintSpace space) =>
+        Of(prefab, space).baseOffset;
 
-    public static TreeMeasurement Of(GameObject prefab)
+    public static TreeMeasurement Of(GameObject prefab, FootprintSpace space)
     {
         if (prefab == null) return default;
+        Dictionary<GameObject, TreeMeasurement> cache = caches[(int)space];
         if (cache.TryGetValue(prefab, out TreeMeasurement cached)) return cached;
-        TreeMeasurement measured = Measure(prefab);
+        TreeMeasurement measured = Measure(prefab, space);
         cache[prefab] = measured;
         return measured;
     }
 
     // Measured from mesh bounds rather than Renderer.bounds so it needs no live
     // instance and can't read back stale for a frame after a transform change.
-    private static TreeMeasurement Measure(GameObject prefab)
+    private static TreeMeasurement Measure(GameObject prefab, FootprintSpace space)
     {
         Transform root = prefab.transform;
-        Matrix4x4 toRoot = root.worldToLocalMatrix;
+
+        // Both spaces drop the root's position, putting the pivot at the
+        // origin, and both bake in its scale so the result is world metres at
+        // prefab scale. They differ only in the root's rotation: applied for
+        // Prefab, stripped for RootLocal - which is exactly how the two
+        // placement paths differ.
+        Quaternion rotation = space == FootprintSpace.Prefab ? root.localRotation : Quaternion.identity;
+        Matrix4x4 toFootprint = Matrix4x4.TRS(Vector3.zero, rotation, root.localScale)
+                                * root.worldToLocalMatrix;
         bool any = false;
-        Bounds local = new Bounds();
+        Bounds bounds = new Bounds();
 
         foreach (MeshFilter mf in prefab.GetComponentsInChildren<MeshFilter>(true))
         {
             if (mf.sharedMesh == null) continue;
-            EncapsulateTransformed(ref local, ref any, mf.sharedMesh.bounds,
-                toRoot * mf.transform.localToWorldMatrix);
+            EncapsulateTransformed(ref bounds, ref any, mf.sharedMesh.bounds,
+                toFootprint * mf.transform.localToWorldMatrix);
         }
         foreach (SkinnedMeshRenderer smr in prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
             if (smr.sharedMesh == null) continue;
-            EncapsulateTransformed(ref local, ref any, smr.sharedMesh.bounds,
-                toRoot * smr.transform.localToWorldMatrix);
+            EncapsulateTransformed(ref bounds, ref any, smr.sharedMesh.bounds,
+                toFootprint * smr.transform.localToWorldMatrix);
         }
 
         if (!any) return default;
 
-        // worldToLocalMatrix stripped the root's own scale, so put it back to
-        // land in world metres. Trees get a random Y rotation, so the wider
-        // horizontal axis is the one that can end up facing a neighbour - take
-        // that as the radius.
-        Vector3 s = root.localScale;
-        float width = local.size.x * Mathf.Abs(s.x);
-        float depth = local.size.z * Mathf.Abs(s.z);
+        // Already in world metres - the root's scale went in with the matrix.
+        // Trees get a random Y rotation, so the wider horizontal axis is the one
+        // that can end up facing a neighbour - take that as the radius.
         return new TreeMeasurement
         {
-            radius = 0.5f * Mathf.Max(width, depth),
-            baseOffset = -local.min.y * Mathf.Abs(s.y),
+            radius = 0.5f * Mathf.Max(bounds.size.x, bounds.size.z),
+            baseOffset = -bounds.min.y,
         };
     }
 

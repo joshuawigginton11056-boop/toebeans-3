@@ -43,6 +43,10 @@ public class TreeScatter : EditorWindow
     private const string DefaultPropGroup = "ScatteredProps";
 
     private bool PropMode => mode == ScatterMode.SmallProps;
+
+    // Footprints have to be measured the way this mode places: prop mode keeps
+    // the prefab's root rotation, tree mode discards it.
+    private FootprintSpace Space => PropMode ? FootprintSpace.Prefab : FootprintSpace.RootLocal;
     private string Noun => PropMode ? "Prop" : "Tree";
     private string NounPlural => PropMode ? "Props" : "Trees";
 
@@ -159,7 +163,7 @@ public class TreeScatter : EditorWindow
         // interaction the current list can ask for.
         float biggestPrefab = 0f;
         foreach (GameObject p in prefabs)
-            biggestPrefab = Mathf.Max(biggestPrefab, TreeFootprint.Radius(p));
+            biggestPrefab = Mathf.Max(biggestPrefab, TreeFootprint.Radius(p, Space));
         biggestPrefab *= Mathf.Max(1f, Mathf.Abs(maxScale));
 
         occupancy.Reset(Mathf.Max(2f, Rule.Required(biggestPrefab, biggestPrefab)));
@@ -199,7 +203,7 @@ public class TreeScatter : EditorWindow
         {
             EditorGUILayout.BeginHorizontal();
             prefabs[i] = (GameObject)EditorGUILayout.ObjectField(prefabs[i], typeof(GameObject), false);
-            float r = TreeFootprint.Radius(prefabs[i]);
+            float r = TreeFootprint.Radius(prefabs[i], Space);
             EditorGUILayout.LabelField(prefabs[i] == null ? "" : $"{r * 2f:F2} m", GUILayout.Width(52));
             if (GUILayout.Button("X", GUILayout.Width(24))) removeAt = i;
             EditorGUILayout.EndHorizontal();
@@ -403,7 +407,7 @@ public class TreeScatter : EditorWindow
         foreach (GameObject p in prefabs)
         {
             if (p == null) continue;
-            float r = TreeFootprint.Radius(p);
+            float r = TreeFootprint.Radius(p, Space);
             if (r <= 0.0001f)
             {
                 empty.Add(p.name);
@@ -857,7 +861,7 @@ public class TreeScatter : EditorWindow
         {
             GameObject prefab = validPrefabs[Random.Range(0, validPrefabs.Count)];
             float scale = Random.Range(minScale, maxScale);
-            float radius = TreeFootprint.Radius(prefab) * scale;
+            float radius = TreeFootprint.Radius(prefab, Space) * scale;
 
             bool placed = false;
             for (int attempt = 0; attempt < attemptsPerTree; attempt++)
@@ -913,7 +917,7 @@ public class TreeScatter : EditorWindow
         {
             GameObject prefab = validPrefabs[Random.Range(0, validPrefabs.Count)];
             float scale = Random.Range(minScale, maxScale);
-            float radius = TreeFootprint.Radius(prefab) * scale;
+            float radius = TreeFootprint.Radius(prefab, Space) * scale;
 
             bool foundSpot = false;
             Spot spot = default;
@@ -951,7 +955,7 @@ public class TreeScatter : EditorWindow
         foreach (GameObject p in prefabs)
         {
             if (p == null) continue;
-            if (TreeFootprint.Radius(p) <= 0.0001f) continue;
+            if (TreeFootprint.Radius(p, Space) <= 0.0001f) continue;
             result.Add(p);
         }
         return result;
@@ -1051,10 +1055,16 @@ public class TreeScatter : EditorWindow
 
         if (PropMode)
         {
+            // Composed with the prefab's own root rotation rather than
+            // replacing it. A model authored Z-up is stood upright by a -90
+            // degree X rotation on its prefab root and by nothing else, so
+            // overwriting that lays it on its side - which is what every
+            // mushroom in the project is built like.
             Vector3 up = PropPlacement.UpAxis(spot.normal, groundTilt);
-            instance.transform.rotation = PropPlacement.Rotation(spot.normal, yaw, groundTilt);
+            instance.transform.rotation = PropPlacement.Rotation(
+                spot.normal, yaw, groundTilt, prefab.transform.localRotation);
             instance.transform.position = PropPlacement.Position(
-                spot.point, up, TreeFootprint.BaseOffset(prefab) * scale, sink);
+                spot.point, up, TreeFootprint.BaseOffset(prefab, Space) * scale, sink);
 
             // Stripped before the instance is registered, so undoing a stroke
             // is one operation rather than one per removed component.
@@ -1062,6 +1072,10 @@ public class TreeScatter : EditorWindow
         }
         else
         {
+            // Trees ignore the prefab's root rotation on purpose: the pack's
+            // roots carry the pose each tree had in the scene they were pulled
+            // out of - one of them a 51 degree yaw - which is scene leftovers
+            // rather than an axis correction, and they get a random yaw anyway.
             instance.transform.position = spot.point;
             instance.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             SnapBaseToGround(instance, spot.point.y);
