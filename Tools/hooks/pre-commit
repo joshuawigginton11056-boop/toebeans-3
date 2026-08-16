@@ -41,7 +41,9 @@ if [ -n "$bad" ]; then
 	printf '%s' "$bad" >&2
 	printf '\nDo NOT hand-edit the markers out of a Unity scene, prefab or asset.\n' >&2
 	printf 'Restore the file from a known-good version instead:\n\n' >&2
-	printf '  git checkout -- "<file>"\n\n' >&2
+	printf '  git checkout HEAD -- "<file>"\n\n' >&2
+	printf 'HEAD is required. A bare "git checkout -- <file>" restores from the\n' >&2
+	printf 'index, so if the ruined file is already staged it just puts it back.\n\n' >&2
 	exit 1
 fi
 
