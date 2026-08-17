@@ -142,3 +142,7 @@ InitTestScene*.unity*
 /[Aa]ssets/ALP_Assets.meta
 /[Aa]ssets/All In One - Heightmaps/
 /[Aa]ssets/All In One - Heightmaps.meta
+
+# Python bytecode from the Blender model scripts.
+__pycache__/
+*.pyc

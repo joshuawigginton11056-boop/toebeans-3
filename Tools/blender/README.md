@@ -39,6 +39,16 @@ Writes `Tools\blender\previews\<name>.png`: an orthographic three-quarter view w
 of one-metre cubes beside the prop. Orthographic on purpose — under perspective the
 reference cubes render at a size that depends on depth, which defeats the point of them.
 
+A kart style ships as three FBX files rather than one, so it has its own previewer that
+assembles them:
+
+```powershell
+& $env:BLENDER_PATH --background --factory-startup --python .\Tools\blender\preview_kart.py -- kart_buggy
+```
+
+Both previewers read the exported FBX rather than re-running the builders, so an export
+that quietly loses its origin or its material split shows up in the picture.
+
 ## Writing a new prop
 
 Copy `models\volcanic_rock.py`. The shape is always the same:
@@ -62,6 +72,77 @@ by the runner, which is how you park a work in progress.
 foot, standing on the ground. Same rule as the Volcano generator. It is what makes "drop it
 on the terrain" mean something instead of leaving you to eyeball a Y offset per instance,
 and `validate` fails a mesh whose base is not on Z=0.
+
+The exception is anything authored around a mount point instead of a footprint, which is
+what `tb.build(..., origin="keep")` is for. A kart body is authored around the kart's own
+origin — on the ground between the wheels, below the floor pan — and a wheel around its
+hub, a radius up. Re-centring either on its lowest vertex would slide it off the anchor the
+runtime places it at, so `origin="keep"` leaves the pivot on the world origin and the base
+check is skipped with it.
+
+## Kart styles
+
+A prop is one mesh. A kart is not, and cannot be: the wheels steer and spin, so they have
+to be their own meshes with their own origins. `models\kart_buggy.py` is the worked
+example, and it exports three files:
+
+| File | Origin | Notes |
+|---|---|---|
+| `KartBuggy_Body.fbx` | kart origin, on the ground | chassis, cockpit and bodywork |
+| `KartBuggy_WheelFront.fbx` | wheel hub | axle along local X |
+| `KartBuggy_WheelRear.fbx` | wheel hub | wider, per `KartDimensions` |
+| `KartBuggy_SteeringWheel.fbx` | steering hub | rim in local XZ, column up local Y |
+
+Three rules that are easy to get wrong:
+
+**Dimensions come from `KartDimensions.Default`, not from taste.** The wheel arches are cut
+for the wheels the physics actually places. The model script mirrors those numbers and
+asserts them against `Assets\Kart\Scripts\KartBlueprint.cs` at build time, so a change on
+the C# side fails the build instead of producing a tyre through a fender. The assertion
+covers the steering constants too, since the steering wheel parents onto a C# pivot.
+
+**Anything that moves is its own mesh.** The road wheels spin and the steering wheel turns,
+so all three are separate files authored around their own pivot. The steering wheel in
+particular is authored in the `Steering` pivot's local space — rim in the local XZ plane,
+column up local Y — because `KartBlueprint` spins that pivot about its own Y and hangs the
+driver's hands off it. Author it in any other frame and it turns like a tabletop. The
+column, rack and tie rods stay in the body, because those parts are static on the C# side.
+
+**The driver stays out of the mesh.** `KartDriverRig` re-aims the arms at the wheel every
+frame, and geometry baked into a static mesh cannot do that.
+
+**Tread peaks at the nominal wheel radius.** `KartSuspension` holds the hub exactly
+`radius` above the contact point, so lugs modelled any prouder than that sink into the
+road. The carcass is drawn under the radius and the tread blocks come back out to meet it.
+
+Kart meshes carry five material slots named for `KartSetup`'s skins — `KartFrame`,
+`KartBody`, `KartSeat`, `KartRim`, `KartRubber` — so one mesh keeps the palette split
+instead of arriving in Unity as a single flat colour. The slot order is the contract the
+skin constants index against: append to it, never reorder it.
+
+## Getting a style into Unity
+
+`Assets/Kart/Scripts/KartStyle.cs` is the list of styles. An entry names the four meshes;
+a style with no meshes builds the old primitive kart instead, which needs no imported
+assets and is the fallback when a model is missing.
+
+```
+Tools > Toebeans > Set Up Drivable Kart        (Ctrl+Shift+K — builds KartStyle.Default)
+Tools > Toebeans > Kart Style > Buggy
+Tools > Toebeans > Kart Style > Primitives     (no imported assets)
+```
+
+`KartSetup` hangs each mesh on the transform it was authored about — the body on the kart
+root, the rim on the `Steering` pivot, each wheel on its corner — and repaints the
+submeshes with the project's own kart materials, matched by the **material name** baked
+into the FBX rather than by slot order. Unity has to have imported the FBX first, so
+after a Blender build, focus the Editor once before running the tool.
+
+Adding a style is: write `models\<style>.py`, build it, add an entry to `KartStyle.All`.
+No other C# changes.
+
+`kart-style-concepts.md` is the shortlist of styles worth building, one per biome, with
+the reasoning behind each and the order to build them in.
 
 ## Why these export settings
 

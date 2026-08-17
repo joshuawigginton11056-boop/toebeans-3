@@ -10,15 +10,35 @@ using Toebeans.Karting;
 namespace Toebeans.Karting.EditorTools
 {
     /// <summary>
-    /// One-click setup for driving the map: builds the kart and its seated driver out of primitives at
-    /// real size, hangs the kart's own raycast wheels off the same dimensions the model was built from
-    /// (see [[unity-wheelcollider-total-velocity-lock]] for why it is not Unity's WheelCollider), saves
-    /// it as a prefab and drops it into the open scene with a chase camera.
+    /// One-click setup for driving the map: builds the kart and its seated driver at real size, hangs
+    /// the kart's own raycast wheels off the same dimensions the model was built from (see
+    /// [[unity-wheelcollider-total-velocity-lock]] for why it is not Unity's WheelCollider), saves it
+    /// as a prefab and drops it into the open scene with a chase camera.
+    ///
+    /// The bodywork comes from a <see cref="KartStyle"/>. A mesh style hangs the exported Blender
+    /// meshes on the rig; the primitive style builds the same rig out of Unity primitives and needs no
+    /// imported assets, which is why it stays as the fallback and the reference.
     /// </summary>
     public static class KartSetup
     {
         const string PrefabPath = "Assets/Prefabs/Kart.prefab";
         const string MaterialFolder = "Assets/Kart/Generated";
+        const string ModelFolder = "Assets/GeneratedModels";
+
+        /// <summary>
+        /// Which skin each submesh of an imported model wears, matched on the material name baked
+        /// into the FBX rather than on slot order. The Blender palette owns that order, and matching
+        /// on it would break silently the first time a slot was inserted.
+        /// </summary>
+        static readonly Dictionary<string, KartSkin> SkinsByMaterialName =
+            new Dictionary<string, KartSkin>
+            {
+                ["KartFrame"] = KartSkin.Frame,
+                ["KartBody"] = KartSkin.Body,
+                ["KartSeat"] = KartSkin.Seat,
+                ["KartRim"] = KartSkin.Rim,
+                ["KartRubber"] = KartSkin.Rubber,
+            };
 
         /// <summary>
         /// 50 Hz leaves a raycast suspension feeling soft and a step behind over bumps at kart speeds.
@@ -27,11 +47,40 @@ namespace Toebeans.Karting.EditorTools
         const float TargetFixedTimestep = 0.0125f;
 
         [MenuItem("Tools/Toebeans/Set Up Drivable Kart %#k", false, 10)]
-        public static void SetUp()
+        public static void SetUp() => SetUp(KartStyle.Default);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Buggy", false, 30)]
+        public static void SetUpBuggy() => SetUp(KartStyle.Buggy);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Primitives (no imported assets)", false, 31)]
+        public static void SetUpPrimitives() => SetUp(KartStyle.Primitives);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Rebuild Prefab Only", false, 42)]
+        public static void RebuildPrefabOnly() => RebuildPrefab(KartStyle.Default);
+
+        /// <summary>
+        /// Rebuilds the kart prefab and leaves the scene and the project settings alone.
+        ///
+        /// A kart already in a scene is a prefab instance, so it picks the new bodywork up on its
+        /// own. That makes this the one to reach for when changing style mid-session: the full
+        /// setup deletes and replaces the kart in the open scene, deactivates the on-foot player and
+        /// raises the project-wide physics tick rate, none of which you want again on the fourth
+        /// time you have flipped between two styles to compare them.
+        /// </summary>
+        public static GameObject RebuildPrefab(KartStyle style)
+        {
+            GameObject prefab = BuildPrefab(KartDimensions.Default, style);
+            if (prefab != null)
+                Debug.Log($"[Kart] Rebuilt {PrefabPath} in the '{style.name}' style. Instances in open " +
+                          "scenes update themselves; the scene was not otherwise touched.");
+            return prefab;
+        }
+
+        public static void SetUp(KartStyle style)
         {
             KartDimensions dimensions = KartDimensions.Default;
 
-            GameObject prefab = BuildPrefab(dimensions);
+            GameObject prefab = BuildPrefab(dimensions, style);
             if (prefab == null)
                 return;
 
@@ -91,7 +140,7 @@ namespace Toebeans.Karting.EditorTools
 
         // ------------------------------------------------------------------ prefab
 
-        static GameObject BuildPrefab(KartDimensions d)
+        static GameObject BuildPrefab(KartDimensions d, KartStyle style)
         {
             var root = new GameObject("Kart");
 
@@ -116,6 +165,9 @@ namespace Toebeans.Karting.EditorTools
 
                 foreach (KartPart part in KartBlueprint.Build(d))
                 {
+                    if (SupersededBy(style, part.group))
+                        continue;
+
                     Transform parent = string.IsNullOrEmpty(part.parent)
                         ? body.transform
                         : pivots[part.parent];
@@ -125,8 +177,20 @@ namespace Toebeans.Karting.EditorTools
                 Transform steering = pivots[KartBlueprint.SteeringPivotPath];
                 Transform driver = pivots[KartBlueprint.DriverPivotPath];
 
+                // Both meshes are authored about the transform they hang on - the body about the
+                // kart's origin, the rim about the steering hub - so neither needs positioning here.
+                if (style.UsesMeshes
+                    && !AddStyleMesh(body.transform, style.bodyMesh, "BodyMesh", materials))
+                    return null;
+
+                if (style.UsesMeshSteeringWheel
+                    && !AddStyleMesh(steering, style.steeringWheelMesh, "SteeringWheelMesh", materials))
+                    return null;
+
                 KartWheel[] wheels = BuildWheelAnchors(root, d);
-                Transform[] wheelVisuals = BuildWheelVisuals(root, d, materials);
+                Transform[] wheelVisuals = BuildWheelVisuals(root, d, style, materials);
+                if (wheelVisuals == null)
+                    return null;
 
                 BuildChassisColliders(root);
 
@@ -157,7 +221,7 @@ namespace Toebeans.Karting.EditorTools
 
                 EnsureFolder("Assets/Prefabs");
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-                Debug.Log($"[Kart] Saved {PrefabPath}.");
+                Debug.Log($"[Kart] Saved {PrefabPath} in the '{style.name}' style.");
                 return prefab;
             }
             finally
@@ -197,7 +261,8 @@ namespace Toebeans.Karting.EditorTools
             return wheels;
         }
 
-        static Transform[] BuildWheelVisuals(GameObject root, KartDimensions d,
+        /// <summary>Returns null if a style's wheel mesh could not be loaded.</summary>
+        static Transform[] BuildWheelVisuals(GameObject root, KartDimensions d, KartStyle style,
             Dictionary<KartSkin, Material> materials)
         {
             var holder = new GameObject("WheelVisuals");
@@ -211,13 +276,105 @@ namespace Toebeans.Karting.EditorTools
                 go.transform.SetParent(holder.transform, false);
                 go.transform.localPosition = d.WheelCentre(corner);
 
-                foreach (KartPart part in KartBlueprint.BuildWheel(d, corner))
-                    Instantiate(part, go.transform, materials);
+                if (style.UsesMeshes)
+                {
+                    // The controller drives this transform directly, spinning it about its own right
+                    // axis, and the mesh is authored with its axle on local X to match.
+                    if (!AddStyleMesh(go.transform, style.WheelMesh(corner), "Mesh", materials))
+                        return null;
+                }
+                else
+                {
+                    foreach (KartPart part in KartBlueprint.BuildWheel(d, corner))
+                        Instantiate(part, go.transform, materials);
+                }
 
                 visuals[(int)corner] = go.transform;
             }
 
             return visuals;
+        }
+
+        // ------------------------------------------------------------------ style meshes
+
+        /// <summary>
+        /// Whether this style's meshes supersede a group of primitives.
+        ///
+        /// The driver and their hands never are. KartDriverRig re-aims the arms at the wheel every
+        /// frame and the hands orbit with the rim, and geometry baked into a static mesh can do
+        /// neither — so a mesh style still gets its driver from primitives.
+        /// </summary>
+        static bool SupersededBy(KartStyle style, KartPartGroup group)
+        {
+            switch (group)
+            {
+                case KartPartGroup.Chassis: return style.UsesMeshes;
+                case KartPartGroup.SteeringWheel: return style.UsesMeshSteeringWheel;
+                default: return false;
+            }
+        }
+
+        /// <summary>
+        /// Hangs one exported mesh on a transform, wearing the kart's own materials rather than
+        /// whatever Unity generated when it imported the FBX. Returns false, having explained itself,
+        /// if the model is not there — which is the normal state of affairs until Blender has been
+        /// run and the Editor has been focused once to import the result.
+        /// </summary>
+        static bool AddStyleMesh(Transform parent, string assetName, string objectName,
+            Dictionary<KartSkin, Material> materials)
+        {
+            string path = $"{ModelFolder}/{assetName}.fbx";
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset == null)
+            {
+                Debug.LogError(
+                    $"[Kart] No model at '{path}'. Build the kart's meshes with " +
+                    ".\\Tools\\blender\\build-models.ps1 -Model kart_buggy, then focus the Editor " +
+                    "once so Unity imports them. Tools > Toebeans > Kart Style > Primitives builds " +
+                    "the kart without any imported assets in the meantime.");
+                return false;
+            }
+
+            MeshFilter source = asset.GetComponentInChildren<MeshFilter>();
+            if (source == null || source.sharedMesh == null)
+            {
+                Debug.LogError($"[Kart] '{path}' imported, but there is no mesh inside it.");
+                return false;
+            }
+
+            var go = new GameObject(objectName);
+            // The mesh is authored about this parent's origin, so no local offset is wanted.
+            go.transform.SetParent(parent, false);
+            go.AddComponent<MeshFilter>().sharedMesh = source.sharedMesh;
+            go.AddComponent<MeshRenderer>().sharedMaterials = SkinMaterials(source, materials, path);
+            return true;
+        }
+
+        static Material[] SkinMaterials(MeshFilter source, Dictionary<KartSkin, Material> materials,
+            string path)
+        {
+            var imported = source.GetComponent<MeshRenderer>();
+            Material[] fromFbx = imported != null ? imported.sharedMaterials : new Material[0];
+
+            var result = new Material[source.sharedMesh.subMeshCount];
+            for (int i = 0; i < result.Length; i++)
+            {
+                string name = i < fromFbx.Length && fromFbx[i] != null ? fromFbx[i].name : null;
+
+                if (name != null && SkinsByMaterialName.TryGetValue(name, out KartSkin skin))
+                {
+                    result[i] = materials[skin];
+                    continue;
+                }
+
+                result[i] = materials[KartSkin.Body];
+                Debug.LogWarning(
+                    $"[Kart] '{path}' submesh {i} carries material '{name ?? "(none)"}', which is not " +
+                    "one of the kart skins, so it fell back to KartBody. The names come from the " +
+                    "palette in Tools/blender/models/kart_buggy.py.");
+            }
+
+            return result;
         }
 
         /// <summary>

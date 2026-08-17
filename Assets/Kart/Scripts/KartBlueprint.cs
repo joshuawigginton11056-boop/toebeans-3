@@ -11,6 +11,14 @@ namespace Toebeans.Karting
     public enum KartCorner { FrontLeft = 0, FrontRight = 1, RearLeft = 2, RearRight = 3 }
 
     /// <summary>
+    /// Which assembly of the kart a part belongs to. A <see cref="KartStyle"/> that ships meshes
+    /// swaps whole groups at a time — the chassis and the steering wheel become imported geometry
+    /// while the driver and their hands stay primitives, because those are animated. Grouping is
+    /// what makes that expressible without matching on part names.
+    /// </summary>
+    public enum KartPartGroup { Chassis, SteeringWheel, Hands, Driver }
+
+    /// <summary>
     /// One primitive of the kart's proxy model, in the local space of whichever pivot it hangs from.
     /// </summary>
     public struct KartPart
@@ -18,6 +26,8 @@ namespace Toebeans.Karting
         public string name;
         /// <summary>Empty for the visual root, otherwise the path of a <see cref="KartPivot"/>.</summary>
         public string parent;
+        /// <summary>Which assembly this belongs to. Set by <see cref="KartBlueprint.Build"/>.</summary>
+        public KartPartGroup group;
         public KartShape shape;
         public KartSkin skin;
         public Vector3 position;
@@ -154,14 +164,47 @@ namespace Toebeans.Karting
         public static List<KartPart> Build(KartDimensions d, bool includeDriver = true)
         {
             var parts = new List<KartPart>();
+
+            // The steering column is grouped with the chassis, not with the wheel: it does not turn,
+            // so a style that replaces the chassis with a mesh has to take the column with it.
+            int start = parts.Count;
             AddChassis(parts, d);
-            AddSteering(parts);
+            AddSteeringColumn(parts);
+            StampGroup(parts, start, KartPartGroup.Chassis);
+
+            start = parts.Count;
+            AddSteeringWheel(parts);
+            StampGroup(parts, start, KartPartGroup.SteeringWheel);
+
+            start = parts.Count;
+            AddHands(parts);
+            StampGroup(parts, start, KartPartGroup.Hands);
+
             if (includeDriver)
+            {
+                start = parts.Count;
                 AddDriver(parts);
+                StampGroup(parts, start, KartPartGroup.Driver);
+            }
+
             return parts;
         }
 
-        /// <summary>The four wheel visuals, built in the local space of their own corner pivot.</summary>
+        /// <summary>KartPart is a struct, so a group set on a copy has to be written back to the list.</summary>
+        static void StampGroup(List<KartPart> parts, int from, KartPartGroup group)
+        {
+            for (int i = from; i < parts.Count; i++)
+            {
+                KartPart part = parts[i];
+                part.group = group;
+                parts[i] = part;
+            }
+        }
+
+        /// <summary>
+        /// The four wheel visuals, built in the local space of their own corner pivot. These carry no
+        /// group — a mesh style replaces the lot by not calling this at all.
+        /// </summary>
         public static List<KartPart> BuildWheel(KartDimensions d, KartCorner corner)
         {
             float radius = d.Radius(corner);
@@ -264,10 +307,13 @@ namespace Toebeans.Karting
 
         // ------------------------------------------------------------------ steering
 
-        static void AddSteering(List<KartPart> parts)
+        static void AddSteeringColumn(List<KartPart> parts)
         {
             parts.Add(Segment("SteeringColumn", SteeringRack, SteeringHub, 0.045f, KartSkin.Frame));
+        }
 
+        static void AddSteeringWheel(List<KartPart> parts)
+        {
             // Rim built from chords rather than one disc, so it reads as a wheel and not a dinner plate.
             float chord = 2f * SteeringWheelRadius * Mathf.Sin(Mathf.PI / SteeringRimSegments) * 1.08f;
             for (int i = 0; i < SteeringRimSegments; i++)
@@ -286,8 +332,15 @@ namespace Toebeans.Karting
                 new Vector3(SteeringWheelRadius * 2f, 0.025f, 0.05f), KartSkin.Rim, SteeringPivotPath));
             parts.Add(Box("Spoke1", Vector3.zero, new Vector3(0f, 90f, 0f),
                 new Vector3(SteeringWheelRadius, 0.025f, 0.05f), KartSkin.Rim, SteeringPivotPath));
+        }
 
-            // Hands hang off the steering pivot, so they orbit with the rim for free.
+        /// <summary>
+        /// Hands hang off the steering pivot, so they orbit with the rim for free. Their own group,
+        /// because a mesh style replaces the rim but still needs somewhere for the arms to reach —
+        /// KartDriverRig finds these by name and aims the forearms at them.
+        /// </summary>
+        static void AddHands(List<KartPart> parts)
+        {
             parts.Add(Sphere("HandL", new Vector3(-SteeringWheelRadius, 0f, 0f), 0.10f,
                 KartSkin.Suit, SteeringPivotPath));
             parts.Add(Sphere("HandR", new Vector3(SteeringWheelRadius, 0f, 0f), 0.10f,

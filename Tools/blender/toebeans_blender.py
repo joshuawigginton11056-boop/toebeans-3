@@ -29,7 +29,7 @@ import os
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 # Tools/blender/toebeans_blender.py -> repo root is two levels up.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -46,6 +46,108 @@ def fresh_scene():
     units = bpy.context.scene.unit_settings
     units.system = "METRIC"
     units.scale_length = 1.0
+
+
+# --------------------------------------------------------------------------------------
+# Mesh primitives
+#
+# Enough to build a tube frame out of. Everything here writes into a bmesh you own and
+# tags what it made with a material slot index, so one mesh can still carry the kart's
+# body/frame/seat/rim/rubber split instead of arriving in Unity as one flat colour.
+#
+# Parts are specified as endpoints rather than centre-plus-rotation, the same way
+# KartBlueprint.Segment does it on the C# side: when a dimension changes, a frame built
+# from endpoints stays joined up and a frame built from centres quietly comes apart.
+# --------------------------------------------------------------------------------------
+
+def _tag(bm_verts, skin):
+    """Stamp a material slot onto everything a bmesh.ops call just created.
+
+    Reached through the new vertices rather than by diffing the face list, which keeps it
+    proportional to the part rather than to the mesh so far. Safe because nothing here
+    merges geometry - each part's vertices are its own.
+    """
+    for v in bm_verts:
+        for f in v.link_faces:
+            f.material_index = skin
+
+
+def _aim(a, b):
+    """Transform placing a primitive's local +Z along a->b, centred between them.
+
+    to_track_quat keeps local X on world X for any direction in the YZ plane, which is
+    what stops a tread lug or a seat back from arriving twisted about its own axis.
+    """
+    a, b = Vector(a), Vector(b)
+    delta = b - a
+    length = delta.length
+    if length < 1e-7:
+        raise ValueError(f"endpoints coincide at {tuple(round(c, 4) for c in a)}")
+    matrix = (Matrix.Translation((a + b) * 0.5)
+              @ delta.to_track_quat("Z", "Y").to_matrix().to_4x4())
+    return matrix, length
+
+
+def tube(bm, a, b, radius, skin=0, segments=6):
+    """A capped cylinder spanning a->b. Six sides by default: the facets are the style."""
+    matrix, length = _aim(a, b)
+    made = bmesh.ops.create_cone(
+        bm, cap_ends=True, cap_tris=False, segments=segments,
+        radius1=radius, radius2=radius, depth=length, matrix=matrix)
+    _tag(made["verts"], skin)
+
+
+def slab(bm, a, b, width, thickness, skin=0):
+    """A box whose long axis spans a->b, `width` across world X, `thickness` the rest."""
+    matrix, length = _aim(a, b)
+    made = bmesh.ops.create_cube(bm, size=1.0, matrix=(
+        matrix @ Matrix.Diagonal(Vector((width, thickness, length))).to_4x4()))
+    _tag(made["verts"], skin)
+
+
+def cuboid(bm, centre, size, skin=0):
+    """An axis-aligned box, given its centre and full size."""
+    made = bmesh.ops.create_cube(bm, size=1.0, matrix=(
+        Matrix.Translation(Vector(centre)) @ Matrix.Diagonal(Vector(size)).to_4x4()))
+    _tag(made["verts"], skin)
+
+
+def mesh_from_bmesh(bm, name):
+    """Hand a finished bmesh over to a real object, and hold on to the bmesh no longer."""
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def assign_materials(obj, palette):
+    """Create the object's material slots, in the order the skin indices assume.
+
+    `palette` is a list of (name, (r, g, b), metallic, roughness). Slot order is the
+    contract between this and the skin constants a model script indexes with, so append
+    to it rather than reordering it.
+
+    Rebuilding the slot list resets every polygon's material_index, so the assignment the
+    mesh is already carrying is saved and put back. That reset is silent - the mesh still
+    renders, just entirely in slot zero - which is a tedious thing to find by eye.
+    """
+    me = obj.data
+    saved = [p.material_index for p in me.polygons]
+
+    me.materials.clear()
+    for name, rgb, metallic, roughness in palette:
+        mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        bsdf.inputs["Base Color"].default_value = (*rgb, 1.0)
+        bsdf.inputs["Metallic"].default_value = metallic
+        bsdf.inputs["Roughness"].default_value = roughness
+        me.materials.append(mat)
+
+    for poly, index in zip(me.polygons, saved):
+        poly.material_index = index
 
 
 # --------------------------------------------------------------------------------------
@@ -73,16 +175,28 @@ def set_origin_to_base(obj):
 
 
 def _translation(v):
-    from mathutils import Matrix
     return Matrix.Translation(v)
 
 
-def finalise(obj, faceted=True):
+def finalise(obj, faceted=True, origin="base"):
     """Apply transforms, fix normals, and set shading. Call before validate/export.
 
     Applying the transform matters more than it looks: an unapplied scale of 0.01 exports
     a prop that is the right size in the viewport and the wrong size in Unity.
+
+    `origin` picks where the object's pivot ends up:
+
+      "base"  the prop convention above - centre of the footprint, on the lowest point.
+      "keep"  leave the pivot on the world origin, because the mesh was authored around
+              its own mount point. A kart body is authored around the kart's origin, which
+              is on the ground between the wheels and *below* the floor pan; a wheel is
+              authored around its hub, which is a radius up from the ground. Re-centring
+              either one on its lowest vertex would slide it away from the anchor the
+              runtime positions it at.
     """
+    if origin not in ("base", "keep"):
+        raise ValueError(f"origin must be 'base' or 'keep', got {origin!r}")
+
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
@@ -102,7 +216,8 @@ def finalise(obj, faceted=True):
     for poly in me.polygons:
         poly.use_smooth = not faceted
 
-    set_origin_to_base(obj)
+    if origin == "base":
+        set_origin_to_base(obj)
     me.update()
 
 
@@ -130,7 +245,8 @@ def ensure_uvs(obj, angle_limit_deg=66.0):
 # Validation
 # --------------------------------------------------------------------------------------
 
-def validate(obj, max_tris=None, require_uvs=True, max_size_m=None):
+def validate(obj, max_tris=None, require_uvs=True, max_size_m=None,
+             require_base_on_ground=True):
     """Raise if the mesh would misbehave in Unity. Returns a stats dict when it passes.
 
     These are failures, not warnings, on purpose. A warning in a build log is a warning
@@ -176,10 +292,14 @@ def validate(obj, max_tris=None, require_uvs=True, max_size_m=None):
         problems.append(f"largest dimension {max(dims):.2f} m exceeds {max_size_m} m")
 
     # The origin convention from set_origin_to_base: sitting on Z=0, centred in plan.
-    bpy.context.view_layer.update()
-    corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
-    if abs(min(c.z for c in corners)) > 1e-4:
-        problems.append(f"base is not on Z=0 (lowest point {min(c.z for c in corners):.5f})")
+    # Off for anything authored around a mount point rather than a footprint - see the
+    # `origin` argument on finalise.
+    if require_base_on_ground:
+        bpy.context.view_layer.update()
+        corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+        lowest = min(c.z for c in corners)
+        if abs(lowest) > 1e-4:
+            problems.append(f"base is not on Z=0 (lowest point {lowest:.5f})")
 
     if problems:
         raise AssertionError(
@@ -243,12 +363,15 @@ def export_for_unity(obj, name, out_dir=None, also_glb=False):
 
 
 def build(obj, name, max_tris=None, require_uvs=True, max_size_m=None, faceted=True,
-          also_glb=False):
+          also_glb=False, origin="base"):
     """finalise -> ensure_uvs -> validate -> export. The whole tail of a model script."""
-    finalise(obj, faceted=faceted)
+    finalise(obj, faceted=faceted, origin=origin)
     if require_uvs:
         ensure_uvs(obj)
-    stats = validate(obj, max_tris=max_tris, require_uvs=require_uvs, max_size_m=max_size_m)
+    # An origin="keep" mesh is authored around its mount point, so the base check that
+    # enforces the prop convention would be asserting the wrong thing about it.
+    stats = validate(obj, max_tris=max_tris, require_uvs=require_uvs, max_size_m=max_size_m,
+                     require_base_on_ground=(origin == "base"))
     written = export_for_unity(obj, name, also_glb=also_glb)
 
     stats["written"] = {k: os.path.relpath(v, REPO_ROOT) for k, v in written.items()}
