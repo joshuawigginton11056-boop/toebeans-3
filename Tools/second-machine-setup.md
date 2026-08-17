@@ -9,6 +9,29 @@ that protects this repo.** The merge driver and the pre-commit hook both live in
 completely fine right up until the first merge, and then it will silently write conflict
 markers into a scene. That is not hypothetical — see `Tools/hooks/README.md`.
 
+## Where to type these commands
+
+**Git Bash**, from the Start menu. Not PowerShell and not Command Prompt — step 4 runs
+a shell script, which neither of those can do.
+
+Git Bash arrives with Git for Windows (<https://gitforwindows.org>), which also bundles
+Git LFS. Installing GitHub Desktop is not enough on its own: it ships a private copy of
+git and does not put Git Bash on the Start menu.
+
+The PowerShell commands in this file — the ones starting `.\` — are the exception. Those
+go in PowerShell.
+
+Order catches people out. Step 1 runs **before** the project exists, so it does not
+matter which folder Git Bash opens in; it writes to your global git config. Everything
+from step 3 onward has to run *inside* the repo:
+
+```bash
+cd ~/Documents/GitHub/toebeans-3
+```
+
+Once the clone exists, `Repository > Open in Git Bash` in GitHub Desktop opens a shell
+already in the right folder.
+
 ## Prerequisites
 
 | Tool | Version | Notes |
