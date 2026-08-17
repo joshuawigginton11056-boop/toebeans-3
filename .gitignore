@@ -146,3 +146,24 @@ InitTestScene*.unity*
 # Python bytecode from the Blender model scripts.
 __pycache__/
 *.pyc
+
+# Store-bought Asset Store packages, kept out of the repo on purpose.
+#
+# These are re-downloadable from Package Manager > My Assets on any machine
+# signed in to the same Unity account, and they ship their own .meta files, so
+# GUIDs match across machines and scene references survive the round trip.
+# Committing them would push past GitHub's free LFS tier for content that is
+# not ours and not yet used by any scene.
+#
+# BOKI also carries 610 MB of demo terrain, one file of which is 151 MB - over
+# GitHub's hard 100 MB per-file limit, and *.asset is not LFS-tracked.
+#
+# IMPORTANT: once a package's assets are actually placed in a scene, the files
+# that scene references must be committed or the scene breaks on the other
+# machine. Force-add them at that point:
+#   git add -f "Assets/BOKI/LowPolyNature/Models/<the ones in use>"
+# See Tools/second-machine-setup.md.
+/Assets/BOKI/
+/Assets/BOKI.meta
+/Assets/POLY_Mountain/
+/Assets/POLY_Mountain.meta

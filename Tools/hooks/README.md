@@ -5,7 +5,7 @@ binary, and asset packs are gigabytes. Three separate incidents here came from t
 mismatch, and none of them were careless commits — all three were missing configuration.
 
 Everything below is **per-clone**. None of it travels with the repository, so it has to
-be redone on every machine (see `second-machine-setup` notes).
+be redone on every machine — `Tools/second-machine-setup.md` is the full checklist.
 
 ## 1. The Unity merge driver — do this first
 
