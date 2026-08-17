@@ -16,8 +16,9 @@ namespace CaveTunnel.EditorTools
     /// cased: deep inside the hill the surface is far above the crown, so it is not inside the cave
     /// and no hole is wanted.
     ///
-    /// Holes live in the TerrainData asset, not the scene, so this writes to
-    /// <c>Assets/New Terrain 2.asset</c> and survives a scene revert. Use Clear to take them back out.
+    /// Holes live in the TerrainData asset, not the scene, so the write lands on whichever asset the
+    /// scene's terrain points at - <c>Assets/Terrain/LobbyIsland_Terrain.asset</c> for LobbyIsland -
+    /// and survives a scene revert. Use Clear to take them back out.
     /// </summary>
     public static class CaveTerrainHoles
     {
