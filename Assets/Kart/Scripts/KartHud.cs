@@ -16,6 +16,7 @@ namespace Toebeans.Karting
         public bool visibleOnStart = true;
 
         KartController _kart;
+        KartLights _lights;
         GUIStyle _panelStyle;
         GUIStyle _labelStyle;
         Texture2D _panelTexture;
@@ -24,6 +25,7 @@ namespace Toebeans.Karting
         void Awake()
         {
             _kart = GetComponent<KartController>() ?? FindAnyObjectByType<KartController>();
+            _lights = GetComponent<KartLights>();
             _visible = visibleOnStart;
         }
 
@@ -66,6 +68,8 @@ namespace Toebeans.Karting
             text.AppendLine($"Brake / reverse    {Bar(_kart.ReverseInput)}  {_kart.ReverseInput:0.00}");
             text.AppendLine($"Steer              {Bar(Mathf.Abs(_kart.SteerInput))}  {_kart.SteerInput:+0.00;-0.00; 0.00}");
             text.AppendLine($"Handbrake          {(_kart.HandbrakeInput ? "on" : "off")}");
+            if (_lights != null)
+                text.AppendLine($"Lights             {(_lights.On ? "on" : "off")}");
 
             // The single most confusing failure is a kart that will not move because the keyboard is
             // going to a different Editor panel. Say so, rather than leaving it looking like physics.
@@ -85,7 +89,7 @@ namespace Toebeans.Karting
             string source = _kart.Input != null ? _kart.Input.SourceDescription : "none";
             text.AppendLine($"Input              [{source}]");
             text.Append("W/S throttle & brake · A/D steer · Space handbrake\n" +
-                        "R recover · C look back · Mouse orbit · H hide this");
+                        "R recover · C look back · L lights · Mouse orbit · H hide this");
 
             string body = text.ToString();
             Vector2 size = _labelStyle.CalcSize(new GUIContent(body));

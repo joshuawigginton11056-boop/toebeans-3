@@ -23,6 +23,11 @@ C# side too.
 
 The driver is deliberately absent and should stay that way. KartDriverRig re-aims the arms
 at the wheel every frame, and geometry baked into a static mesh cannot do that.
+
+The lamps are in the body mesh, but their glass is its own material slot: KartLights
+switches the headlights on by swapping the material on those faces and hanging a real Unity
+Light on the front of the nose pair, so the positions here are KartBlueprint's and are
+asserted against it like the wheel dimensions are.
 """
 
 import math
@@ -77,6 +82,26 @@ STEERING_HUB = (0.0, 0.76, -0.02)
 STEERING_WHEEL_RADIUS = 0.16
 STEERING_RIM_SEGMENTS = 10
 
+# Lamps, mirrored from KartBlueprint's lamp reference points and asserted against them below.
+# These are shared for the same reason the wheel radii are: KartLights hangs a real Unity Light on
+# the front face of the glass this file builds, so a pod nudged here and nowhere else is a beam
+# coming out of the bodywork - and it only shows up in the dark, which is where nobody is looking.
+HEADLAMP_Y = 0.47
+HEADLAMP_Z = 1.30
+HEADLAMP_HALF_SPACING = 0.15
+HEADLAMP_SIZE = (0.14, 0.10, 0.06)
+
+ROOF_POD_Y = 1.33
+ROOF_POD_Z = 0.22
+ROOF_POD_INNER_X = 0.16
+ROOF_POD_OUTER_X = 0.34
+ROOF_POD_SIZE = (0.12, 0.10, 0.09)
+
+# The glass is its own piece with its own material, not a face of the housing. Switching the lights
+# on is a material swap on exactly these faces, so they have to be separable from the metal.
+LENS_THICKNESS = 0.018
+LENS_INSET = 0.022
+
 # ---------------------------------------------------------------------------------------
 # Frame layout
 # ---------------------------------------------------------------------------------------
@@ -107,7 +132,7 @@ THIN_TUBE = 0.026
 # Material slots. The order is the contract with tb.assign_materials, and the names and
 # colours are KartSetup's, so the imported mesh lands on the palette the rest of the kart
 # already wears. Unity smoothness is Blender roughness inverted.
-FRAME, BODY, SEAT, RIM, RUBBER = range(5)
+FRAME, BODY, SEAT, RIM, RUBBER, GLASS = range(6)
 
 # What each slot is used for here. In the reference the space frame itself is the painted
 # part and the suspension hanging off it is black, so the tubes take the kart's identity
@@ -117,7 +142,8 @@ TUBE = BODY      # roll cage, rails, nose - the silhouette
 LINK = FRAME     # wishbones, trailing arms, axle, steering column
 PANEL = FRAME    # floor pan and engine, dark so the frame reads against them
 TRIM = SEAT      # seat and fenders
-METAL = RIM      # springs, light pods, exhaust
+METAL = RIM      # springs, light pod housings, exhaust
+LENS = GLASS     # the glass in the front of each lamp, and nothing else
 
 PALETTE = [
     ("KartFrame", (0.22, 0.23, 0.26), 0.65, 0.55),
@@ -125,6 +151,10 @@ PALETTE = [
     ("KartSeat", (0.13, 0.13, 0.15), 0.00, 0.70),
     ("KartRim", (0.72, 0.74, 0.78), 0.90, 0.30),
     ("KartRubber", (0.07, 0.07, 0.08), 0.00, 0.78),
+    # Cold glass - what a lamp looks like switched off. Unity repaints this slot with KartLens and
+    # swaps it for the emissive KartLensLit when the headlights come on, so the colour here only
+    # has to survive the Blender preview.
+    ("KartLens", (0.62, 0.64, 0.62), 0.20, 0.05),
 ]
 
 
@@ -321,13 +351,42 @@ def add_arch(bm, centre, radius, half_width, thickness=0.03, segments=5,
         face.material_index = TRIM
 
 
+def lamp_mounts():
+    """Every lamp on the buggy as (centre, housing size), nose pair first.
+
+    One list rather than two builders because Unity walks the same list on its side -
+    KartBlueprint.Lamps() is this function - and two lists that have to agree across a language
+    boundary is one more than the drift check can keep honest.
+    """
+    mounts = [((x, HEADLAMP_Y, HEADLAMP_Z), HEADLAMP_SIZE)
+              for x in (-HEADLAMP_HALF_SPACING, HEADLAMP_HALF_SPACING)]
+    mounts += [((x, ROOF_POD_Y, ROOF_POD_Z), ROOF_POD_SIZE)
+               for x in (-ROOF_POD_OUTER_X, -ROOF_POD_INNER_X,
+                         ROOF_POD_INNER_X, ROOF_POD_OUTER_X)]
+    return mounts
+
+
 def add_lights(bm):
-    """Light pods on the front roof bar, as in the reference."""
-    for x in (-0.34, -0.16, 0.16, 0.34):
-        tb.cuboid(bm, u(x, CAGE_FRONT_TOP_Y + 0.09, CAGE_FRONT_TOP_Z),
-                  usize(0.12, 0.10, 0.09), METAL)
-        tb.tube(bm, u(x, CAGE_FRONT_TOP_Y + 0.01, CAGE_FRONT_TOP_Z),
-                u(x, CAGE_FRONT_TOP_Y + 0.06, CAGE_FRONT_TOP_Z), 0.018, LINK)
+    """Lamp housings, their glass, and the stalks standing the roof pods off the screen rail.
+
+    The glass is a separate box in its own material slot rather than the front face of the
+    housing. It has to be: Unity switches the headlights on by swapping the material on exactly
+    these faces, and a lens that shares a slot with the pod would light the whole pod up with it.
+    """
+    for (x, y, z), size in lamp_mounts():
+        tb.cuboid(bm, u(x, y, z), usize(*size), METAL)
+
+        # Proud of the housing's front face by half its own thickness, which is where
+        # KartLamp.LensCentre puts it on the C# side and where the Light is hung.
+        lens_z = z + (size[2] + LENS_THICKNESS) * 0.5
+        tb.cuboid(bm, u(x, y, lens_z),
+                  usize(size[0] - LENS_INSET * 2, size[1] - LENS_INSET * 2, LENS_THICKNESS),
+                  LENS)
+
+    # Only the roof pods need standing off anything - the nose pair sit on the prow plate.
+    for x in (-ROOF_POD_OUTER_X, -ROOF_POD_INNER_X, ROOF_POD_INNER_X, ROOF_POD_OUTER_X):
+        tb.tube(bm, u(x, CAGE_FRONT_TOP_Y + 0.01, ROOF_POD_Z),
+                u(x, ROOF_POD_Y - ROOF_POD_SIZE[1] * 0.5 + 0.02, ROOF_POD_Z), 0.018, LINK)
 
 
 def add_cage_padding(bm):
@@ -395,11 +454,6 @@ def add_mirrors(bm):
                   METAL)
 
 
-def add_nose_lights(bm):
-    """A pair of lamps on the prow plate, under the roof bar's light pods."""
-    for x in (-0.15, 0.15):
-        tb.cuboid(bm, u(x, 0.47, 1.30), usize(0.14, 0.10, 0.06), METAL)
-
 
 def build_body():
     """Assemble the chassis. Assumes an empty scene; see __main__ for why it is separate."""
@@ -416,7 +470,6 @@ def build_body():
     add_controls(bm)
     add_steering_linkage(bm)
     add_mirrors(bm)
-    add_nose_lights(bm)
 
     obj = tb.mesh_from_bmesh(bm, BODY_NAME)
     tb.assign_materials(obj, PALETTE)
@@ -539,8 +592,18 @@ def check_against_blueprint():
         "RollHoopTopY": ROLL_HOOP_TOP_Y, "RollHoopZ": ROLL_HOOP_Z,
         "SteeringWheelRadius": STEERING_WHEEL_RADIUS,
         "SteeringRimSegments": STEERING_RIM_SEGMENTS,
+        # The lamps, for the same reason: KartLights puts a Light on the front of the glass built
+        # here, so the two files have to agree about where the glass is.
+        "HeadlampY": HEADLAMP_Y, "HeadlampZ": HEADLAMP_Z,
+        "HeadlampHalfSpacing": HEADLAMP_HALF_SPACING,
+        "RoofPodY": ROOF_POD_Y, "RoofPodZ": ROOF_POD_Z,
+        "RoofPodInnerX": ROOF_POD_INNER_X, "RoofPodOuterX": ROOF_POD_OUTER_X,
+        "LensThickness": LENS_THICKNESS, "LensInset": LENS_INSET,
     }
-    vectors = {"SteeringHub": STEERING_HUB, "SteeringRack": STEERING_RACK}
+    vectors = {
+        "SteeringHub": STEERING_HUB, "SteeringRack": STEERING_RACK,
+        "HeadlampSize": HEADLAMP_SIZE, "RoofPodSize": ROOF_POD_SIZE,
+    }
 
     drifted = []
     for field, ours in scalars.items():

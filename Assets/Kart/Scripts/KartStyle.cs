@@ -34,6 +34,17 @@ namespace Toebeans.Karting
         /// </summary>
         public string steeringWheelMesh;
 
+        /// <summary>
+        /// Whether this style's bodywork has lamp housings in it, and so whether the kart gets a
+        /// working set of lights. The housings and their glass are part of the model — the runtime
+        /// only adds the Lights and the switch — so a style whose model has no lamps has to leave
+        /// this off, or the kart drives around with beams coming out of thin air.
+        ///
+        /// The lamp positions themselves are not a style setting: they live in KartBlueprint, where
+        /// the model script can assert against them. See <see cref="KartBlueprint.Lamps"/>.
+        /// </summary>
+        public bool headlights;
+
         public bool UsesMeshes => !string.IsNullOrEmpty(bodyMesh);
 
         public bool UsesMeshSteeringWheel => !string.IsNullOrEmpty(steeringWheelMesh);
@@ -55,8 +66,11 @@ namespace Toebeans.Karting
             wheelFrontMesh = "KartBuggy_WheelFront",
             wheelRearMesh = "KartBuggy_WheelRear",
             steeringWheelMesh = "KartBuggy_SteeringWheel",
+            headlights = true,
         };
 
+        // No headlights: the primitive kart has no cage and no prow to mount them on, and lamps
+        // hovering where the buggy's roof bar would be is worse than no lamps at all.
         public static readonly KartStyle Primitives = new KartStyle { name = "Primitives" };
 
         public static readonly IReadOnlyList<KartStyle> All = new[] { Buggy, Primitives };

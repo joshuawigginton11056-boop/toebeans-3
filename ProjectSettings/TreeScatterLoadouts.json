@@ -30,7 +30,12 @@
             "spacingMode": 0,
             "canopySpacing": 1.0,
             "extraGap": 0.0,
-            "dabStep": 0.5
+            "dabStep": 0.5,
+            "scatterMode": 0,
+            "stripColliders": false,
+            "groundTilt": 0.0,
+            "sink": 0.0,
+            "surfaceLayers": -1
         },
         {
             "name": "Shrroms",
@@ -51,7 +56,38 @@
             "spacingMode": 0,
             "canopySpacing": 1.0,
             "extraGap": 0.0,
-            "dabStep": 0.5
+            "dabStep": 0.5,
+            "scatterMode": 0,
+            "stripColliders": false,
+            "groundTilt": 0.0,
+            "sink": 0.0,
+            "surfaceLayers": -1
+        },
+        {
+            "name": "deads",
+            "prefabGuids": [
+                "3809b7ab36ff6c341a14d87904ba4ed0",
+                "5dbdd41d34b73e643ae3a98f3b2fba6b",
+                "27360fa6a1d9f46429cb1146e6b48a24",
+                "ffc62253eb30a874da9ffa9202866c1c"
+            ],
+            "parentName": "ScatteredTrees",
+            "minSpacing": 3.0,
+            "maxSlope": 35.0,
+            "count": 50,
+            "brushRadius": 5.0,
+            "treesPerDab": 1,
+            "minScale": 6.0,
+            "maxScale": 12.0,
+            "spacingMode": 0,
+            "canopySpacing": 0.5,
+            "extraGap": 0.0,
+            "dabStep": 0.5,
+            "scatterMode": 0,
+            "stripColliders": true,
+            "groundTilt": 0.800000011920929,
+            "sink": 0.0,
+            "surfaceLayers": -1
         }
     ]
 }

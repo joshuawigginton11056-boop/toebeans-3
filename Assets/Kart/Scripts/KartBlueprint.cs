@@ -5,7 +5,7 @@ namespace Toebeans.Karting
 {
     public enum KartShape { Box, Cylinder, Capsule, Sphere }
 
-    public enum KartSkin { Body, Frame, Rubber, Rim, Seat, Suit, Helmet, Visor }
+    public enum KartSkin { Body, Frame, Rubber, Rim, Seat, Suit, Helmet, Visor, Lens }
 
     /// <summary>Which corner a wheel sits on. The order is fixed: the physics and the model index it the same way.</summary>
     public enum KartCorner { FrontLeft = 0, FrontRight = 1, RearLeft = 2, RearRight = 3 }
@@ -42,6 +42,33 @@ namespace Toebeans.Karting
         public string path;
         public Vector3 position;
         public Vector3 euler;
+    }
+
+    /// <summary>Which lamp cluster a housing belongs to. They point differently and cost differently.</summary>
+    public enum KartLampKind { Headlamp, RoofPod }
+
+    /// <summary>
+    /// One lamp housing on the kart, in the visual root's local space. A lamp is geometry plus the
+    /// glass on the front of it; whether a real <see cref="UnityEngine.Light"/> hangs off it is
+    /// <see cref="KartLights"/>'s business, not this file's.
+    /// </summary>
+    public struct KartLamp
+    {
+        public string name;
+        public KartLampKind kind;
+        /// <summary>Centre of the housing.</summary>
+        public Vector3 position;
+        /// <summary>Full size of the housing.</summary>
+        public Vector3 size;
+
+        /// <summary>Centre of the glass, sitting proud of the housing's front face.</summary>
+        public Vector3 LensCentre =>
+            position + new Vector3(0f, 0f, (size.z + KartBlueprint.LensThickness) * 0.5f);
+
+        public Vector3 LensSize => new Vector3(
+            size.x - KartBlueprint.LensInset * 2f,
+            size.y - KartBlueprint.LensInset * 2f,
+            KartBlueprint.LensThickness);
     }
 
     /// <summary>
@@ -142,6 +169,31 @@ namespace Toebeans.Karting
         public const float RollHoopZ = -0.72f;
         public const float RollHoopHalfWidth = 0.40f;
 
+        // ------------------------------------------------------------------ lamp reference points
+        // Where the buggy's lamp housings sit, and how big they are. Mirrored in
+        // Tools/blender/models/kart_buggy.py, which builds the same housings into the body mesh and
+        // asserts these numbers against this file at build time. They are here rather than only in
+        // the model script because KartLights hangs a real Light on the front of the glass: a lamp
+        // that moved in Blender and not here is a beam coming out of the bodywork, which is the same
+        // class of silent drift as an arch cut for the wrong wheel.
+
+        public const float HeadlampY = 0.47f;
+        public const float HeadlampZ = 1.30f;
+        /// <summary>Half the gap between the two nose lamps — they sit at ±this.</summary>
+        public const float HeadlampHalfSpacing = 0.15f;
+        public static readonly Vector3 HeadlampSize = new Vector3(0.14f, 0.10f, 0.06f);
+
+        public const float RoofPodY = 1.33f;
+        public const float RoofPodZ = 0.22f;
+        public const float RoofPodInnerX = 0.16f;
+        public const float RoofPodOuterX = 0.34f;
+        public static readonly Vector3 RoofPodSize = new Vector3(0.12f, 0.10f, 0.09f);
+
+        /// <summary>How far the glass stands off the housing's front face.</summary>
+        public const float LensThickness = 0.018f;
+        /// <summary>How far the glass is set in from the housing's edge, all the way round.</summary>
+        public const float LensInset = 0.022f;
+
         public const string SteeringPivotPath = "Steering";
         public const string DriverPivotPath = "Driver";
 
@@ -160,6 +212,51 @@ namespace Toebeans.Karting
                 new KartPivot { path = DriverPivotPath, position = Vector3.zero, euler = Vector3.zero },
             };
         }
+
+        /// <summary>
+        /// Every lamp housing on the kart, nose pair first. Two clusters, because they do different
+        /// jobs: the nose lamps light the road immediately ahead, the pod bar throws over the top of
+        /// it. Both are listed here even for a style whose mesh already contains the housings —
+        /// KartLights needs the positions to hang its Lights on either way.
+        /// </summary>
+        public static IReadOnlyList<KartLamp> Lamps()
+        {
+            var lamps = new List<KartLamp>();
+
+            for (int s = -1; s <= 1; s += 2)
+            {
+                lamps.Add(new KartLamp
+                {
+                    name = s < 0 ? "HeadlampL" : "HeadlampR",
+                    kind = KartLampKind.Headlamp,
+                    position = new Vector3(HeadlampHalfSpacing * s, HeadlampY, HeadlampZ),
+                    size = HeadlampSize,
+                });
+            }
+
+            foreach (float x in new[] { -RoofPodOuterX, -RoofPodInnerX, RoofPodInnerX, RoofPodOuterX })
+            {
+                lamps.Add(new KartLamp
+                {
+                    name = $"RoofPod{(x < 0f ? "L" : "R")}{(Mathf.Abs(x) > RoofPodInnerX ? "Outer" : "Inner")}",
+                    kind = KartLampKind.RoofPod,
+                    position = new Vector3(x, RoofPodY, RoofPodZ),
+                    size = RoofPodSize,
+                });
+            }
+
+            return lamps;
+        }
+
+        /// <summary>
+        /// Where the real Lights go. The nose pair get one each, so the beams are as far apart as the
+        /// lamps are and the road ahead is lit from two points rather than one. The four pods share a
+        /// single wide light at the middle of the bar: four more realtime spot lights, all pointing
+        /// the same way from within 700 mm of each other, buy nothing you can see from the driver's
+        /// seat and cost four times as much on a grid of karts.
+        /// </summary>
+        public static Vector3 RoofBarLightCentre =>
+            new Vector3(0f, RoofPodY, RoofPodZ + (RoofPodSize.z + LensThickness) * 0.5f);
 
         public static List<KartPart> Build(KartDimensions d, bool includeDriver = true)
         {

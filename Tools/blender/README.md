@@ -80,6 +80,62 @@ hub, a radius up. Re-centring either on its lowest vertex would slide it off the
 runtime places it at, so `origin="keep"` leaves the pivot on the world origin and the base
 check is skipped with it.
 
+## Cabins
+
+`models\cabin.py` builds three houses from one script, the way `kart_buggy.py` builds four
+kart parts from one:
+
+| File | What it is |
+|---|---|
+| `Cabin_A.fbx` | the full house - porch, two dormers, chimney, shuttered windows |
+| `Cabin_B.fbx` | a smaller one-room cabin with a woodshed lean-to, no dormers |
+| `Cabin_Burnt.fbx` | `Cabin_A` after the fire: roof mostly gone, walls charred, embers left |
+
+They exist because the medieval-town buildings already in the scene are mitred to razor
+edges, and everything this project makes itself - terrain, volcanic rock, karts - is a
+faceted solid with **chamfered** corners. Standing next to each other the difference reads
+as two art styles in one map.
+
+So the rule for anything building-shaped here is: model it as solid boxes and prisms,
+never as planes or cut-outs, and let `build_cabin` put one bevel pass over the finished
+mesh. One pass and not per-part, because a post meeting a rail has to chamfer to the same
+width as the rail - that is what makes an assembly of boxes read as one carved object.
+`MIN_PART` (0.07 m) is the floor on any dimension; go under it and the chamfer eats the
+part, and `validate` fails the build on the zero-area faces that result.
+
+Three things follow from that rule and are easy to get wrong:
+
+**Openings are decomposed, not cut.** `panels` fills a wall with boxes around its holes and
+`piers` returns the stretches left between them. Booleans here produce n-gons and coplanar
+slivers, and the bevel turns both into shading artefacts you only see once it is in Unity.
+`add_frame` takes the same openings and puts its braces in the piers, so a brace can never
+land across a window however the windows move.
+
+**Shingle courses are tilted, not stacked.** Courses laid parallel to the deck all sit at
+one height and merge into a single flat slab no matter how far they overlap. Each course
+here rides up on the tail of the one below and lies almost flat at its head, which steps
+every course line by about one shingle without the roof thickening as it climbs.
+
+**Every opening has something behind it.** An unbacked hole shows the skybox through the
+far wall the moment the camera drops below the eaves. That is the `CabinInterior` slot.
+
+Dimensions are architectural rather than arbitrary - a 2.55 m wall, a 2.03 m door, a sill
+at 1.30 m - and the elevations are derived from the spec, not written out, so `Cabin_B` is
+a different building at a different width rather than `Cabin_A` with its windows hanging
+off the corners. A kart is 1.24 m across its front track, so the doors are deliberately too
+small to drive through and the porch posts stand inside the eaves, where a kart clipping
+the corner glances off the stone plinth instead of catching a post.
+
+The seven material slots are the same on all three, so a variant's materials match by slot
+as well as by name. Slot 4 is "the part that glows": `CabinGlass` on a standing cabin,
+`BurntEmber` on the ruin - the slot the scene's own lava material belongs on.
+
+`Cabin_Burnt` is the same spec as `Cabin_A` carrying a `Damage`, not a second model that
+merely resembles it, so the two can stand side by side in a scene. `Damage` says which
+shingle courses survived and how much of each gable is left; everything else - exposed
+rafters, the burnt bay, the door off one hinge, the debris around the foot - follows from
+it. Its bounding box is wider than the house, because the debris is part of the prop.
+
 ## Kart styles
 
 A prop is one mesh. A kart is not, and cannot be: the wheels steer and spin, so they have
@@ -115,10 +171,17 @@ frame, and geometry baked into a static mesh cannot do that.
 `radius` above the contact point, so lugs modelled any prouder than that sink into the
 road. The carcass is drawn under the radius and the tread blocks come back out to meet it.
 
-Kart meshes carry five material slots named for `KartSetup`'s skins — `KartFrame`,
-`KartBody`, `KartSeat`, `KartRim`, `KartRubber` — so one mesh keeps the palette split
-instead of arriving in Unity as a single flat colour. The slot order is the contract the
-skin constants index against: append to it, never reorder it.
+Kart meshes carry six material slots named for `KartSetup`'s skins — `KartFrame`,
+`KartBody`, `KartSeat`, `KartRim`, `KartRubber`, `KartLens` — so one mesh keeps the palette
+split instead of arriving in Unity as a single flat colour. The slot order is the contract
+the skin constants index against: append to it, never reorder it.
+
+**Lamp glass gets its own slot.** `KartLights` switches the headlights on by swapping the
+material on the `KartLens` submesh for an emissive one, so the glass has to be modelled as
+its own boxes in their own slot — glass sharing a slot with the housing lights the whole
+pod up with it. The lamp positions are in `KartBlueprint` and asserted like the wheel
+dimensions are, because Unity hangs a real `Light` on the front face of each nose lamp:
+move a lamp in Blender alone and the beam comes out of the bodywork.
 
 ## Getting a style into Unity
 
@@ -140,6 +203,10 @@ after a Blender build, focus the Editor once before running the tool.
 
 Adding a style is: write `models\<style>.py`, build it, add an entry to `KartStyle.All`.
 No other C# changes.
+
+A style whose model has lamps sets `headlights = true` on its entry, and `KartSetup` hangs
+the Lights and the switch on it — **L** toggles them while driving. Leave it off for a
+model with no lamp housings, or the kart drives around with beams coming out of nothing.
 
 `kart-style-concepts.md` is the shortlist of styles worth building, one per biome, with
 the reasoning behind each and the order to build them in.

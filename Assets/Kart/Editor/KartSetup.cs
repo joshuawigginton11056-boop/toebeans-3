@@ -38,6 +38,7 @@ namespace Toebeans.Karting.EditorTools
                 ["KartSeat"] = KartSkin.Seat,
                 ["KartRim"] = KartSkin.Rim,
                 ["KartRubber"] = KartSkin.Rubber,
+                ["KartLens"] = KartSkin.Lens,
             };
 
         /// <summary>
@@ -179,13 +180,19 @@ namespace Toebeans.Karting.EditorTools
 
                 // Both meshes are authored about the transform they hang on - the body about the
                 // kart's origin, the rim about the steering hub - so neither needs positioning here.
-                if (style.UsesMeshes
-                    && !AddStyleMesh(body.transform, style.bodyMesh, "BodyMesh", materials))
-                    return null;
+                GameObject bodyMesh = null;
+                if (style.UsesMeshes)
+                {
+                    bodyMesh = AddStyleMesh(body.transform, style.bodyMesh, "BodyMesh", materials);
+                    if (bodyMesh == null)
+                        return null;
+                }
 
                 if (style.UsesMeshSteeringWheel
-                    && !AddStyleMesh(steering, style.steeringWheelMesh, "SteeringWheelMesh", materials))
+                    && AddStyleMesh(steering, style.steeringWheelMesh, "SteeringWheelMesh", materials) == null)
                     return null;
+
+                BuildLights(root, body.transform, style, materials, bodyMesh);
 
                 KartWheel[] wheels = BuildWheelAnchors(root, d);
                 Transform[] wheelVisuals = BuildWheelVisuals(root, d, style, materials);
@@ -280,7 +287,7 @@ namespace Toebeans.Karting.EditorTools
                 {
                     // The controller drives this transform directly, spinning it about its own right
                     // axis, and the mesh is authored with its axle on local X to match.
-                    if (!AddStyleMesh(go.transform, style.WheelMesh(corner), "Mesh", materials))
+                    if (AddStyleMesh(go.transform, style.WheelMesh(corner), "Mesh", materials) == null)
                         return null;
                 }
                 else
@@ -296,6 +303,83 @@ namespace Toebeans.Karting.EditorTools
         }
 
         // ------------------------------------------------------------------ style meshes
+
+        // ------------------------------------------------------------------ lamps
+
+        /// <summary>
+        /// Hangs real Lights on the lamps the bodywork already has, and wires the glass up to them.
+        ///
+        /// Nothing is built here if the style has no lamps — see <see cref="KartStyle.headlights"/>.
+        /// The housings are part of the model, so this only ever adds the Lights and the switch; if
+        /// the glass cannot be found the Lights are still built, because a beam that works out of a
+        /// dull lens is a smaller problem than no headlights at all, and the warning says which.
+        /// </summary>
+        static void BuildLights(GameObject root, Transform body, KartStyle style,
+            Dictionary<KartSkin, Material> materials, GameObject bodyMesh)
+        {
+            if (!style.headlights)
+                return;
+
+            var holder = new GameObject("Headlights");
+            holder.transform.SetParent(body, false);
+
+            var headlamps = new List<Light>();
+            foreach (KartLamp lamp in KartBlueprint.Lamps())
+            {
+                if (lamp.kind != KartLampKind.Headlamp)
+                    continue;
+
+                // On the front face of the glass, not inside the housing: a spot light behind its own
+                // bodywork lights the bodywork.
+                headlamps.Add(Lamp(holder.transform, $"{lamp.name}Light",
+                    lamp.LensCentre + new Vector3(0f, 0f, KartBlueprint.LensThickness * 0.5f)));
+            }
+
+            var lights = root.AddComponent<KartLights>();
+            lights.headlamps = headlamps.ToArray();
+            lights.roofBar = Lamp(holder.transform, "RoofBarLight", KartBlueprint.RoofBarLightCentre);
+            lights.lensOff = materials[KartSkin.Lens];
+            lights.lensLit = LitLensMaterial();
+            lights.lenses = FindLenses(bodyMesh, materials[KartSkin.Lens], style);
+            lights.Apply();
+            lights.Set(lights.onAtStart);
+        }
+
+        static Light Lamp(Transform parent, string name, Vector3 localPosition)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPosition;
+
+            // Everything else about the light — cone, range, intensity, how far it is tipped down — is
+            // KartLights' to set, so all of it stays tunable in one Inspector rather than half here.
+            return go.AddComponent<Light>();
+        }
+
+        /// <summary>
+        /// Which submesh of the bodywork is the glass. Found by material rather than by index, for the
+        /// same reason <see cref="SkinMaterials"/> matches on names: the Blender palette owns the slot
+        /// order, and an index here would break silently the first time a slot was inserted.
+        /// </summary>
+        static KartLights.Lens[] FindLenses(GameObject bodyMesh, Material lensMaterial, KartStyle style)
+        {
+            var renderer = bodyMesh != null ? bodyMesh.GetComponent<MeshRenderer>() : null;
+            int submesh = renderer != null
+                ? System.Array.IndexOf(renderer.sharedMaterials, lensMaterial)
+                : -1;
+
+            if (submesh < 0)
+            {
+                Debug.LogWarning(
+                    $"[Kart] The '{style.name}' style has headlights, but nothing in its bodywork wears " +
+                    "the KartLens material, so the lamp glass will not light up with the beams. Rebuild " +
+                    "the model with .\\Tools\\blender\\build-models.ps1 -Model kart_buggy and focus the " +
+                    "Editor once so Unity re-imports it.");
+                return new KartLights.Lens[0];
+            }
+
+            return new[] { new KartLights.Lens { renderer = renderer, submesh = submesh } };
+        }
 
         /// <summary>
         /// Whether this style's meshes supersede a group of primitives.
@@ -316,11 +400,11 @@ namespace Toebeans.Karting.EditorTools
 
         /// <summary>
         /// Hangs one exported mesh on a transform, wearing the kart's own materials rather than
-        /// whatever Unity generated when it imported the FBX. Returns false, having explained itself,
+        /// whatever Unity generated when it imported the FBX. Returns null, having explained itself,
         /// if the model is not there — which is the normal state of affairs until Blender has been
         /// run and the Editor has been focused once to import the result.
         /// </summary>
-        static bool AddStyleMesh(Transform parent, string assetName, string objectName,
+        static GameObject AddStyleMesh(Transform parent, string assetName, string objectName,
             Dictionary<KartSkin, Material> materials)
         {
             string path = $"{ModelFolder}/{assetName}.fbx";
@@ -332,14 +416,14 @@ namespace Toebeans.Karting.EditorTools
                     ".\\Tools\\blender\\build-models.ps1 -Model kart_buggy, then focus the Editor " +
                     "once so Unity imports them. Tools > Toebeans > Kart Style > Primitives builds " +
                     "the kart without any imported assets in the meantime.");
-                return false;
+                return null;
             }
 
             MeshFilter source = asset.GetComponentInChildren<MeshFilter>();
             if (source == null || source.sharedMesh == null)
             {
                 Debug.LogError($"[Kart] '{path}' imported, but there is no mesh inside it.");
-                return false;
+                return null;
             }
 
             var go = new GameObject(objectName);
@@ -347,7 +431,7 @@ namespace Toebeans.Karting.EditorTools
             go.transform.SetParent(parent, false);
             go.AddComponent<MeshFilter>().sharedMesh = source.sharedMesh;
             go.AddComponent<MeshRenderer>().sharedMaterials = SkinMaterials(source, materials, path);
-            return true;
+            return go;
         }
 
         static Material[] SkinMaterials(MeshFilter source, Dictionary<KartSkin, Material> materials,
@@ -482,10 +566,27 @@ namespace Toebeans.Karting.EditorTools
                 [KartSkin.Suit] = GetOrCreate("DriverSuit", new Color(0.11f, 0.27f, 0.60f), 0f, 0.35f),
                 [KartSkin.Helmet] = GetOrCreate("DriverHelmet", new Color(0.93f, 0.93f, 0.95f), 0.1f, 0.8f),
                 [KartSkin.Visor] = GetOrCreate("DriverVisor", new Color(0.05f, 0.06f, 0.09f), 0.5f, 0.95f),
+                // Cold glass, which is what a headlamp looks like switched off — pale and glossy, not
+                // white. KartLights swaps this submesh for KartLensLit when the lamps come on.
+                [KartSkin.Lens] = GetOrCreate("KartLens", new Color(0.62f, 0.64f, 0.62f), 0.2f, 0.95f),
             };
         }
 
-        static Material GetOrCreate(string name, Color color, float metallic, float smoothness)
+        /// <summary>
+        /// The lit half of the lens pair. Its own asset rather than emission written onto KartLens at
+        /// runtime: the materials here are project assets shared by every kart, so writing to one
+        /// would switch on the whole grid — and in the Editor it would stay switched on after Play.
+        /// </summary>
+        static Material LitLensMaterial()
+        {
+            return GetOrCreate("KartLensLit", new Color(1f, 0.97f, 0.86f), 0f, 0.9f,
+                // Beyond 1 so the lens blows out rather than just being pale, which is what makes it
+                // read as a lamp that is on from the low chase camera and in daylight.
+                emission: new Color(3.2f, 2.9f, 2.2f));
+        }
+
+        static Material GetOrCreate(string name, Color color, float metallic, float smoothness,
+            Color emission = default)
         {
             string path = $"{MaterialFolder}/{name}.mat";
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -503,6 +604,15 @@ namespace Toebeans.Karting.EditorTools
                 material.SetFloat("_Smoothness", smoothness);
             else if (material.HasProperty("_Glossiness"))
                 material.SetFloat("_Glossiness", smoothness);
+
+            if (emission.maxColorComponent > 0f)
+            {
+                // URP reads emission off the keyword as well as the colour, and a material that has
+                // the colour without the keyword renders exactly as if it had neither.
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", emission);
+                material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            }
 
             EnsureFolder(MaterialFolder);
             AssetDatabase.CreateAsset(material, path);
@@ -554,7 +664,8 @@ namespace Toebeans.Karting.EditorTools
 
             Debug.Log($"[Kart] Kart placed at {instance.transform.position}. Press Play to drive. " +
                       "W/S throttle and brake · A/D steer · Space handbrake · R recover · C look back · " +
-                      "H hide the readout. Click the Game view once to capture the mouse for the camera.");
+                      "L headlights · H hide the readout. Click the Game view once to capture the mouse " +
+                      "for the camera.");
         }
 
         /// <summary>
