@@ -37,9 +37,10 @@ namespace Volcano
                  "crater, not to the crater itself.")]
         [Range(0.5f, 80f)] public float radius = 15f;
 
-        [Tooltip("Puffs per second. Long-lived puffs at a low rate read far better than a fire hose " +
-                 "of short ones, and cost a fraction as much.")]
-        [Range(0.2f, 120f)] public float rate = 7f;
+        [Tooltip("Puffs per second. A column is built out of many small puffs, not a few big ones - " +
+                 "a big puff has no silhouette of its own at this range and reads as a sheet.\n\n" +
+                 "Halving Start Size takes four times the rate to look as solid.")]
+        [Range(0.2f, 400f)] public float rate = 26f;
 
         [Header("Motion")]
         [Tooltip("How fast a puff leaves the vent, in metres per second.")]
@@ -61,11 +62,12 @@ namespace Volcano
         [Range(0f, 8f)] public float turbulence = 1.6f;
 
         [Header("Size")]
-        [Tooltip("How wide a puff is when it appears, in metres.")]
+        [Tooltip("How wide a puff is when it appears, in metres, measured across it.")]
         [Range(0.2f, 60f)] public float startSize = 9f;
 
-        [Tooltip("How much it has swollen by the time it dies.")]
-        [Range(1f, 12f)] public float growth = 3.4f;
+        [Tooltip("How much it has swollen by the time it dies. This multiplies Start Size, so the " +
+                 "two together set how big the top of the column gets.")]
+        [Range(1f, 12f)] public float growth = 2.4f;
 
         [Header("Colour")]
         [Tooltip("Colour and opacity over a puff's life. The first stop is the one glowing in the " +
@@ -75,6 +77,13 @@ namespace Volcano
         // A fresh Gradient is not empty, it is two white keys, so "has anyone set this?" cannot be
         // answered by looking at the gradient. Hence the flag.
         [SerializeField, HideInInspector] bool tintSet;
+
+        [Header("Shelter")]
+        [Tooltip("Stay underneath any Mist Shelter the puffs drift into - the deck of a bridge, " +
+                 "say - and spill out of the sides of it rather than rising through the road.\n\n" +
+                 "Only the puffs that would pass through the deck are caught: a column already " +
+                 "clear of one carries on up past it.")]
+        public bool duckUnderShelters = true;
 
         [Header("Detail")]
         [Tooltip("How many facets a puff has. 0 is a bare 20-face lump; 1 is 80 and is as far as " +
@@ -86,6 +95,9 @@ namespace Volcano
         [SerializeField] int seed = 7;
 
         Mesh _puff;
+        ParticleSystem _system;
+        ParticleSystemRenderer _view;
+        ParticleSystem.Particle[] _particles;
 
         void Reset()
         {
@@ -122,6 +134,19 @@ namespace Volcano
 #endif
         }
 
+        /// <summary>
+        /// After the system has stepped, so the puffs are read where they were actually drawn.
+        /// </summary>
+        void LateUpdate()
+        {
+            if (!duckUnderShelters) return;
+
+            if (_system == null) _system = GetComponent<ParticleSystem>();
+            if (_view == null) _view = GetComponent<ParticleSystemRenderer>();
+
+            MistShelter.Confine(_system, _view, ref _particles, lumpiness, Time.deltaTime);
+        }
+
         void OnDestroy()
         {
             if (_puff == null) return;
@@ -149,7 +174,11 @@ namespace Volcano
             main.loop = true;
             main.startLifetime = new ParticleSystem.MinMaxCurve(lifetime * 0.65f, lifetime * 1.15f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(riseSpeed * 0.6f, riseSpeed * 1.3f);
-            main.startSize = new ParticleSystem.MinMaxCurve(startSize * 0.6f, startSize * 1.25f);
+            // Halved because the puff mesh is a unit-RADIUS blob: a particle's size is its radius,
+            // so a puff comes out twice the number it was given unless this is taken off. See the
+            // same note in LavaMist - it is what had the column arriving 34 m across.
+            float half = startSize * 0.5f;
+            main.startSize = new ParticleSystem.MinMaxCurve(half * 0.6f, half * 1.25f);
             main.startRotation3D = true;
             main.startRotationX = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             main.startRotationY = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
@@ -277,8 +306,8 @@ namespace Volcano
                 new[]
                 {
                     new GradientAlphaKey(0f, 0f),
-                    new GradientAlphaKey(0.30f, 0.12f),
-                    new GradientAlphaKey(0.18f, 0.55f),
+                    new GradientAlphaKey(0.40f, 0.12f),
+                    new GradientAlphaKey(0.24f, 0.55f),
                     new GradientAlphaKey(0f, 1f)
                 });
             return g;

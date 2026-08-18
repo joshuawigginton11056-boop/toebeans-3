@@ -1049,10 +1049,14 @@ public class TreeScatter : EditorWindow
         instance.transform.localScale = prefab.transform.localScale * scale;
         float yaw = Random.Range(0f, 360f);
 
+        // Whatever rotation the prefab root carries is how the model is meant to
+        // stand, so the brush turns it rather than replacing it.
+        Quaternion model = prefab.transform.rotation;
+
         if (PropMode)
         {
             Vector3 up = PropPlacement.UpAxis(spot.normal, groundTilt);
-            instance.transform.rotation = PropPlacement.Rotation(spot.normal, yaw, groundTilt);
+            instance.transform.rotation = PropPlacement.Rotation(spot.normal, yaw, groundTilt, model);
             instance.transform.position = PropPlacement.Position(
                 spot.point, up, TreeFootprint.BaseOffset(prefab) * scale, sink);
 
@@ -1063,7 +1067,7 @@ public class TreeScatter : EditorWindow
         else
         {
             instance.transform.position = spot.point;
-            instance.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            instance.transform.rotation = Quaternion.Euler(0f, yaw, 0f) * model;
             SnapBaseToGround(instance, spot.point.y);
         }
 

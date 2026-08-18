@@ -35,7 +35,7 @@ namespace Toebeans.Karting
 
         [Header("Mass")]
         [Tooltip("Kart without the driver, in kilograms. A racing kart is about 80; this one is a heavier buggy.")]
-        public float kerbMass = 175f;
+        public float kerbMass = 130f;
         [Tooltip("Driver plus kit, in kilograms.")]
         public float driverMass = 80f;
         [Tooltip("Centre of mass, in local metres. Low and slightly rearward is what stops it tripping over its nose.")]
@@ -44,55 +44,102 @@ namespace Toebeans.Karting
         [Header("Drive")]
         public KartDrive drive = KartDrive.AllWheel;
         [Tooltip("Total drive torque at the wheels, in newton-metres, shared between the driven wheels.")]
-        public float maxDriveTorque = 520f;
+        public float maxDriveTorque = 620f;
         [Tooltip("Metres per second. Drive torque fades to nothing here, and aero drag holds it.")]
         public float topSpeed = 26f;
         public float reverseTopSpeed = 8f;
+        [Range(0.2f, 1f)]
+        [Tooltip("Fraction of top speed the engine pulls flat out to before it begins tapering off. " +
+                 "High is what keeps the kart feeling strong everywhere a player actually spends " +
+                 "their time, rather than only off the line.")]
+        public float powerBandEnd = 0.75f;
+        [Range(0f, 1.2f)]
+        [Tooltip("How much of a slope's pull the engine cancels out for you. 1 climbs a hill as hard " +
+                 "as it pulls on the flat; 0 is honest physics, and honest physics is what made this " +
+                 "kart die on every incline on the map.")]
+        public float gradeAssist = 0.85f;
+        [Tooltip("Drivetrain braking past top speed, in newton-metres per (m/s) over it. Stops the " +
+                 "kart running away downhill, where the engine has faded out and aero drag alone is " +
+                 "not enough to hold it.")]
+        public float overspeedBraking = 150f;
         [Tooltip("Total braking torque at the wheels, in newton-metres.")]
         public float maxBrakeTorque = 2400f;
-        [Tooltip("Extra torque the handbrake puts through the rear wheels.")]
-        public float handbrakeTorque = 2600f;
+        [Tooltip("Extra torque the handbrake puts through the rear wheels. Deliberately slight. The " +
+                 "drift here is a grip mechanic, not a braking one — handbrakeGripLoss is what breaks " +
+                 "the back away, and this is only the nudge that starts the rotation. At the 2600 it " +
+                 "shipped with it was thirty times the drive torque reaching one wheel, so entering a " +
+                 "drift meant throwing an anchor out and watching the engine lose the argument.")]
+        public float handbrakeTorque = 420f;
         [Range(0.05f, 1f)]
-        [Tooltip("How much sideways grip the rear tyres keep under handbrake. Lower slides more.")]
-        public float handbrakeGripLoss = 0.35f;
+        [Tooltip("How much sideways grip the rear tyres keep under handbrake. Lower slides more. This " +
+                 "is the only door to a slide now that lateralPriority holds the back end in line " +
+                 "everywhere else, so it is what the whole drift mechanic is tuned on.")]
+        public float handbrakeGripLoss = 0.22f;
 
         [Header("Steering")]
         [Tooltip("Degrees of lock at a standstill.")]
         public float maxSteerAngle = 28f;
         [Tooltip("Degrees of lock per second — how fast the wheels reach full lock.")]
-        public float steerRate = 110f;
+        public float steerRate = 280f;
         [Range(0.1f, 1f)]
-        [Tooltip("Fraction of full lock still available at top speed. Keeps it from spearing off at pace.")]
-        public float steerAtTopSpeed = 0.45f;
+        [Tooltip("Fraction of full lock still available at top speed. Keeps it from spearing off at " +
+                 "pace, and keeps the steering proportional: lock far beyond what the tyres can use " +
+                 "makes the first fifth of the key travel do everything and the rest do nothing.")]
+        public float steerAtTopSpeed = 0.5f;
         [Tooltip("Turn the inside wheel tighter than the outside one, as a real steering rack does.")]
         public bool ackermann = true;
+        [Tooltip("How firmly the kart is turned toward the heading its steering geometry implies, in " +
+                 "newton-metres per (rad/s) of error per kilogram. This is what makes the kart go " +
+                 "where it is pointed the instant the key goes down instead of waiting for the tyres " +
+                 "to argue it round. It works both ways — it turns the kart in and it stops the kart " +
+                 "rotating past where the driver asked for, which is the other half of never spinning " +
+                 "out by accident. Switched off entirely while the handbrake is held, because a slide " +
+                 "is precisely the kart NOT following its front wheels. 0 disables it.")]
+        public float yawAssist = 2.5f;
 
         [Header("Suspension")]
-        [Tooltip("Total suspension travel, in metres.")]
-        public float suspensionDistance = 0.20f;
-        [Tooltip("Ride frequency in hertz. About 1.5 is a road car, 2.5 is stiff and sporty.")]
-        public float rideFrequency = 2.4f;
+        [Tooltip("Total suspension travel, in metres. Long, because this is an offroad kart and travel " +
+                 "is what lets it swallow a bump instead of being thrown off it. Changing this needs " +
+                 "a prefab rebuild — the wheel anchors are placed from it.")]
+        public float suspensionDistance = 0.28f;
+        [Tooltip("Ride frequency in hertz. About 1.5 is a road car, 2.5 is stiff and sporty. Soft is " +
+                 "the offroad answer: it rides the terrain rather than skittering across it, and it " +
+                 "is what makes the kart visibly squat, pitch and lean as it works.")]
+        public float rideFrequency = 1.6f;
         [Range(0.1f, 1.5f)]
-        [Tooltip("1 is critically damped. Around 0.45 lets it breathe over bumps without wallowing.")]
-        public float dampingRatio = 0.45f;
-        [Tooltip("Anti-roll bar rate, newtons per unit of travel difference across an axle.")]
-        public float antiRollStiffness = 9000f;
+        [Tooltip("1 is critically damped. Low enough to let the springs move visibly, high enough that " +
+                 "it settles instead of pogoing.")]
+        public float dampingRatio = 0.38f;
+        [Tooltip("Anti-roll bar rate, newtons per unit of travel difference across an axle. Deliberately " +
+                 "soft — an anti-roll bar's whole job is to stop the body leaning, and the body leaning " +
+                 "is the thing the player is supposed to see when they throw it into a corner.")]
+        public float antiRollStiffness = 3000f;
 
         [Header("Traction")]
         [Tooltip("Eases off a wheel that is already at its grip limit. Without it a wheel that goes " +
                  "light demands its full share of the engine regardless of whether it can use it.")]
         public bool tractionControl = true;
         [Range(0.05f, 2f)]
-        [Tooltip("How much of the grip limit can be demanded before the drive is eased off next frame.")]
-        public float allowedSlip = 0.35f;
+        [Tooltip("How much of the grip limit can be demanded before the drive is eased off next frame. " +
+                 "This is a wheelspin guard, not a power limit — set near the limit so the kart gets " +
+                 "to use the grip it has. At 0.35 it was throttling back any time the driver asked " +
+                 "for more than a third of it, which reads as the engine going soft for no reason.")]
+        public float allowedSlip = 0.9f;
         [Tooltip("Braking torque applied to a wheel that is off the ground, so it does not windmill.")]
         public float airborneWheelDrag = 40f;
 
         [Header("Engine speed")]
         [Tooltip("Wheel rpm to engine rpm. A kart has no gearbox, so this is a single fixed reduction.")]
-        public float finalDriveRatio = 11f;
-        public float idleEngineRpm = 1400f;
-        public float maxEngineRpm = 9500f;
+        public float finalDriveRatio = 9.7f;
+        public float idleEngineRpm = 2400f;
+        [Tooltip("The limiter. With KartAudio's four-stroke firing count this puts full song near 67 Hz " +
+                 "and idle near 20 — a chest-height rumble rather than the 158 Hz buzz it shipped with.")]
+        public float maxEngineRpm = 8000f;
+        [Tooltip("Extra engine gearing while reversing. Reverse tops out at under a third of forward " +
+                 "speed, so on the same reduction it never lifts off idle and sounds like the kart has " +
+                 "given up. Gearing it separately is what a real machine with a reverse gear does, and " +
+                 "it is the whole difference between reverse feeling strong and feeling broken.")]
+        public float reverseGearing = 3f;
         [Tooltip("How fast the revs climb, and fall. Falling slower than rising is what gives the " +
                  "engine its weight.")]
         public float engineRevUpRate = 7f;
@@ -103,7 +150,13 @@ namespace Toebeans.Karting
                  "acceleration the tyre can put down at this load.")]
         public float forwardGrip = 1.6f;
         [Tooltip("Sideways tyre grip coefficient, before the surface multiplier.")]
-        public float sidewaysGrip = 1.5f;
+        public float sidewaysGrip = 2.4f;
+        [Range(0f, 1f)]
+        [Tooltip("How much of the grip budget cornering gets first call on. 0 is simulator behaviour — " +
+                 "throttle mid-corner costs you grip and the back steps out. 1 protects cornering " +
+                 "entirely and makes hard acceleration cost drive instead, so the kart only slides " +
+                 "when the player asks it to with the handbrake.")]
+        public float lateralPriority = 0.85f;
         [Tooltip("How hard the tyre resists sideways slip, in newtons per (m/s) of slip. Higher plants " +
                  "the kart harder into a turn before it starts to slide.")]
         public float lateralStiffness = 9000f;
@@ -292,6 +345,7 @@ namespace Toebeans.Karting
             UpdateSuspension();
             ReadSurfaces();
             ApplyDriveAndBrakes(throttle, reverse, handbrake);
+            ApplyYawAssist(handbrake);
             ApplyAntiRoll();
             ApplyAerodynamics();
             ApplyAirBehaviour();
@@ -538,13 +592,49 @@ namespace Toebeans.Karting
             }
 
             float limit = drivePedal >= 0f ? topSpeed : reverseTopSpeed;
-            float fade = 1f - Mathf.Clamp01(Mathf.Abs(ForwardSpeed) / Mathf.Max(limit, 0.01f));
-            // Squared fade: strong off the line, tapering as the kart approaches the speed the engine
-            // can hold, so top speed is reached asymptotically rather than hit like a wall.
-            fade *= fade;
+            float speedFraction = Mathf.Abs(ForwardSpeed) / Mathf.Max(limit, 0.01f);
 
-            float totalTorque = maxDriveTorque * drivePedal * fade * CurrentSurface.driveEfficiency;
+            // Full torque right through the power band, easing away only over the last stretch of it.
+            //
+            // This was a squared fade across the whole range, and squaring it cost the kart three
+            // quarters of its engine by half speed — 130 Nm of 520 at 13 m/s, about 1.8 m/s² of
+            // thrust, against the 1.7 m/s² a ten degree slope takes straight back off it. That single
+            // line is why the kart puttered on the flat, crawled up anything and had nothing left for
+            // the lip of a bridge. Holding the band flat is an arcade choice and a deliberate one:
+            // this is an offroad derby, and the engine has to feel like it is holding something in
+            // reserve everywhere a player actually drives, not only from a standstill.
+            float taper = Mathf.Clamp01(
+                (speedFraction - powerBandEnd) / Mathf.Max(1f - powerBandEnd, 0.01f));
+            float fade = 1f - taper * taper;
+
+            // Gravity's pull along the way the driver is asking to go, handed back to them. A climb
+            // still reads as a climb — the suspension squats, the nose comes up, momentum carried into
+            // it still matters — but it no longer quietly eats the whole engine on the way up.
+            // Resolved against the drive direction rather than the nose, so reversing up a slope gets
+            // the same help going backwards that it would going forwards.
+            float climbTorque = 0f;
+            if (gradeAssist > 0f && Mathf.Abs(drivePedal) > 0.01f)
+            {
+                Vector3 driveDirection = transform.forward * Mathf.Sign(drivePedal);
+                float slopeAcceleration = -Vector3.Dot(Physics.gravity, driveDirection);
+                if (slopeAcceleration > 0f)
+                    climbTorque = gradeAssist * slopeAcceleration * _rigidbody.mass
+                                  * _dimensions.rearWheelRadius;
+            }
+
+            float totalTorque = (maxDriveTorque * fade + climbTorque)
+                                * drivePedal * CurrentSurface.driveEfficiency;
             float brakeTorquePerWheel = maxBrakeTorque / 4f * brakePedal;
+
+            // Downhill the engine has faded out and only aero drag opposes gravity — about 1.6 m/s² at
+            // full tilt against the 2.5 a fifteen degree descent hands out, so the kart simply ran
+            // away. This is the drivetrain holding it back the way a real one does once the wheels are
+            // driving the engine instead of the other way round, and it applies whether or not the
+            // driver is on the throttle. It opposes travel through the same rolling sign as the
+            // brakes, so it can never shove a stationary kart anywhere.
+            float overspeed = Mathf.Abs(ForwardSpeed) - limit;
+            if (overspeed > 0f)
+                brakeTorquePerWheel += overspeed * overspeedBraking / 4f;
 
             // Share the drive out by how much weight each wheel is carrying, the way a limited-slip
             // differential does. Splitting it evenly instead sends a full quarter of the engine to a
@@ -605,13 +695,26 @@ namespace Toebeans.Karting
                     // last frame, rather than trying to solve the clamp and the demand simultaneously.
                     // Reading each wheel's own slipRatio (not a running frame-wide value) is what keeps
                     // one wheel's wheelspin from wrongly throttling back a wheel that never slipped.
-                    if (tractionControl && wheel.slipRatio > allowedSlip)
+                    //
+                    // Stood down entirely under handbrake, and this was the other half of the engine
+                    // dying mid-drift. slipRatio is the combined demand, lateral included, so a
+                    // deliberate slide reads as enormous slip and traction control dutifully shut the
+                    // engine off for it — correcting the exact thing the driver just asked for. There
+                    // is nothing to protect here: a sliding tyre is the mechanic, not a fault.
+                    if (tractionControl && !handbrake && wheel.slipRatio > allowedSlip)
                         motorTorque *= Mathf.Clamp01(allowedSlip / wheel.slipRatio);
                 }
 
                 float brakeTorque = brakeTorquePerWheel;
                 if (handbrake && rear)
-                    brakeTorque += handbrakeTorque * 0.5f;
+                {
+                    // Faded out by whatever the driver is asking of the engine. On the throttle
+                    // through a drift there is no handbrake braking left at all — only the grip loss,
+                    // which is the part that actually makes the kart rotate. Holding both should feel
+                    // like steering with the back end, not like fighting the brakes for the corner.
+                    brakeTorque += handbrakeTorque * 0.5f
+                                   * (1f - Mathf.Clamp01(Mathf.Abs(drivePedal)));
+                }
 
                 if (!wheel.grounded)
                 {
@@ -682,11 +785,16 @@ namespace Toebeans.Karting
                 float forwardHold = holdBlend <= 0f ? 0f : holdBlend * KartWheelPhysics.SolveHoldingForce(
                     forwardVel, Vector3.Dot(pull, wheelForward), massShare, Time.fixedDeltaTime);
 
+                // Cornering keeps its priority claim on the grip everywhere except a rear wheel under
+                // handbrake, which is the one place the kart is supposed to let go — protecting the
+                // back end there would make the drift button do nothing at all.
+                float priority = handbrake && rear ? 0f : lateralPriority;
+
                 KartWheelPhysics.TyreForceResult tyre = KartWheelPhysics.SolveTyreForce(
                     demandedForwardForce + forwardHold, lateralVel, stableStiffness, wheel.load,
                     forwardGrip * surface.forwardGrip,
                     sidewaysGrip * surface.sidewaysGrip * (handbrake && rear ? handbrakeGripLoss : 1f),
-                    lateralHold);
+                    lateralHold, priority);
 
                 // A tyre holding the kart still is not slipping, whatever the demand ratio says. Left
                 // raw, a kart parked on a hill would read as wheelspin on the HUD and in the engine
@@ -705,6 +813,61 @@ namespace Toebeans.Karting
             }
 
             UpdateEngineSpeed(drivePedal);
+        }
+
+        /// <summary>
+        /// Turns the kart toward the heading its own steering geometry implies, and holds it there.
+        ///
+        /// Tyres alone get there eventually, but "eventually" is the complaint: the kart rotates when
+        /// the rubber has finished arguing about it, which reads as vague on the way in and as a spin
+        /// on the way out. This closes the loop directly on yaw rate instead. The target is the honest
+        /// one — v·tan(steer)/wheelbase is the rate a vehicle on that lock is geometrically going
+        /// round at — so it is not inventing a heading, only arriving at the real one immediately.
+        ///
+        /// Being an error term it corrects in both directions, which is what makes it an anti-spin
+        /// device as much as a steering one: rotating faster than the front wheels asked for is the
+        /// definition of the back coming round, and this pulls it straight back.
+        ///
+        /// Three things stop it becoming an autopilot. It does nothing airborne, where there is no
+        /// contact patch to justify a yaw force. It does nothing under handbrake, so a deliberate
+        /// drift is never fought. And it does nothing below walking pace, where tan(steer) implies
+        /// large rates from tiny speeds and a parked kart would spin on the spot.
+        /// </summary>
+        void ApplyYawAssist(bool handbrake)
+        {
+            if (yawAssist <= 0f || handbrake || _groundedWheels == 0)
+                return;
+
+            float speed = ForwardSpeed;
+            if (Mathf.Abs(speed) < 1.5f)
+                return;
+
+            float geometric = speed * Mathf.Tan(_steerAngle * Mathf.Deg2Rad)
+                              / Mathf.Max(_dimensions.Wheelbase, 0.01f);
+
+            // Clamped to the rate the tyres could actually hold at this speed, and this is the whole
+            // reason the kart still span at pace.
+            //
+            // Turn radius from steering geometry does not care how fast you are going, but the
+            // cornering it implies very much does: a corner of radius r needs v²/r of lateral
+            // acceleration and turns the kart at v/r, so the hardest a kart can be turned without
+            // simply sliding off the line is a_lat/v. At full lock at top speed the geometry asks for
+            // 5.6 rad/s and the tyres can hold 0.9 — six times over. The assist was faithfully
+            // rotating the chassis to a heading the velocity could not follow, which is not a
+            // steering input, it is a spin, and the assist was the thing causing it.
+            //
+            // Reading the surface here too, so ice asks for less of the kart than rock does.
+            float gripLimitedRate = sidewaysGrip * CurrentSurface.sidewaysGrip
+                                    * Physics.gravity.magnitude / Mathf.Max(Mathf.Abs(speed), 0.01f);
+            float desired = Mathf.Clamp(geometric, -gripLimitedRate, gripLimitedRate);
+
+            float actual = Vector3.Dot(_rigidbody.angularVelocity, transform.up);
+
+            // Scaled by mass so the feel survives a change of kerb weight, and faded in with how many
+            // wheels are actually down — a kart on two wheels over a crest has no business being
+            // steered by anything but gravity.
+            float authority = yawAssist * _rigidbody.mass * (_groundedWheels / 4f);
+            _rigidbody.AddTorque(transform.up * ((desired - actual) * authority), ForceMode.Force);
         }
 
         bool IsDriven(KartCorner corner) =>
@@ -734,7 +897,13 @@ namespace Toebeans.Karting
             if (counted > 0)
                 wheelRpm /= counted;
 
-            float fromWheels = wheelRpm * finalDriveRatio;
+            // Reverse is geared up so it revs out across its own much shorter speed range instead of
+            // sitting just off idle all the way to its limit, which is what made it sound broken.
+            float ratio = finalDriveRatio;
+            if (drivePedal < 0f || ForwardSpeed < -0.5f)
+                ratio *= Mathf.Max(reverseGearing, 1f);
+
+            float fromWheels = wheelRpm * ratio;
             float target = Mathf.Clamp(fromWheels, idleEngineRpm, maxEngineRpm);
 
             // Blipping the throttle at a standstill should still rev it, or the kart sounds dead on the

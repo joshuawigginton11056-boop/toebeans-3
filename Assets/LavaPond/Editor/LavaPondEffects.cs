@@ -131,34 +131,40 @@ namespace LavaPond.EditorTools
 
             if (billow)
             {
-                // Big, slow and long-lived. Rates stay low on purpose: wisps are overlapping solids,
-                // so turning this up does not thicken the fog so much as replace the pond with it.
+                // Slow, long-lived, and small next to the pool. Size is the setting that decides
+                // whether this reads as fog at all: measured on LobbyIsland, wisps were arriving
+                // 32 m across and dying at 75 m on a pool barely wider than that, so two of them
+                // covered it and the bank was a translucent sheet with no cloud in it. A quarter
+                // of the radius, dying at under half, gives the pool a dozen lumps instead.
                 //
-                // Measured on LobbyIsland's 96 m pool, where 0.55 gave wisps averaging 44 m across:
-                // two of them covered the pond and the bank read as a lid rather than as fog. A
-                // quarter of the radius is enough of them to have depth.
-                mist.width = radius * 0.26f;
+                // The rate then has to go up to match, and by more than it looks: what you see
+                // through is the puff area a sightline crosses, so halving the width takes four
+                // times as many to be as thick.
+                mist.width = radius * 0.15f;
                 mist.flatness = 0.34f;
-                mist.rate = 8f;
+                mist.rate = 82f;
                 mist.lifetime = 13f;
                 mist.rise = 0.9f;
                 mist.spread = 1.5f;
                 mist.turbulence = 0.6f;
-                mist.growth = 2.3f;
-                mist.puffDetail = 1;
+                mist.growth = 1.7f;
+                // Back to the bare 20-face lump. It was worth paying for 80 when a wisp was 32 m
+                // across and its outline was most of what you saw; at a third of that the facets
+                // are smaller than the softness of the material and nobody can tell.
+                mist.puffDetail = 0;
                 mist.SetTint(SteamTint());
             }
             else
             {
                 // Small, fast and nearly clear: the air over the lava moving, not smoke.
-                mist.width = radius * 0.22f;
+                mist.width = radius * 0.115f;
                 mist.flatness = 0.16f;
-                mist.rate = 7f;
+                mist.rate = 60f;
                 mist.lifetime = 5f;
                 mist.rise = 1.4f;
                 mist.spread = 0.5f;
                 mist.turbulence = 0.35f;
-                mist.growth = 1.5f;
+                mist.growth = 1.4f;
                 mist.puffDetail = 0;
                 mist.SetTint(HazeTint());
             }
@@ -206,7 +212,10 @@ namespace LavaPond.EditorTools
                 smoke.rate = hasVent ? 20f : 12f;
                 smoke.riseSpeed = Mathf.Clamp(radius * 0.5f, 6f, 18f);
                 smoke.lifetime = 3.5f;
-                smoke.startSize = Mathf.Clamp(radius * 0.02f, 0.25f, 1.2f);
+                // Doubled against the old numbers rather than retuned: an ember is a bright speck
+                // about a metre across and it already was, so these only make up for Start Size
+                // having been half what it claimed.
+                smoke.startSize = Mathf.Clamp(radius * 0.04f, 0.5f, 2.4f);
                 smoke.growth = 1f;
                 smoke.drift = 1.2f;
                 smoke.turbulence = 2.2f;
@@ -214,16 +223,18 @@ namespace LavaPond.EditorTools
             else
             {
                 smoke.radius = source;
-                smoke.rate = 5f;
+                smoke.rate = 46f;
                 smoke.riseSpeed = Mathf.Clamp(radius * 0.28f, 3f, 12f);
                 smoke.lifetime = 14f;
-                // A puff has to be smaller than the column it is building, or the whole thing is
-                // one lump: measured on the 96 m pool, half the radius put 38 m puffs inside a
-                // 30 m column. The vent case can be smaller again — it is coming out of a hole.
-                smoke.startSize = Mathf.Clamp(radius * (hasVent ? 0.22f : 0.28f), 1.5f, 16f);
-                smoke.growth = 3f;
+                // A puff has to be a good deal smaller than the column it is building, or the whole
+                // thing is one lump with no smoke in it: measured on LobbyIsland, this was putting
+                // 34 m puffs into a 30 m column and they were dying at 101 m. Small and many is the
+                // only way a column reads as smoke rather than as a shape.
+                smoke.startSize = Mathf.Clamp(radius * (hasVent ? 0.125f : 0.16f), 1.5f, 16f);
+                smoke.growth = 2.2f;
                 smoke.drift = 2.2f;
                 smoke.turbulence = 1.5f;
+                smoke.puffDetail = 0;
             }
 
             smoke.driftHeading = DriftHeading(pond.Settings.flowAngle);
@@ -266,8 +277,8 @@ namespace LavaPond.EditorTools
                 new[]
                 {
                     new GradientAlphaKey(0f, 0f),
-                    new GradientAlphaKey(0.13f, 0.2f),
-                    new GradientAlphaKey(0.08f, 0.62f),
+                    new GradientAlphaKey(0.19f, 0.2f),
+                    new GradientAlphaKey(0.12f, 0.62f),
                     new GradientAlphaKey(0f, 1f)
                 });
             return g;
@@ -287,8 +298,8 @@ namespace LavaPond.EditorTools
                 new[]
                 {
                     new GradientAlphaKey(0f, 0f),
-                    new GradientAlphaKey(0.07f, 0.25f),
-                    new GradientAlphaKey(0.05f, 0.6f),
+                    new GradientAlphaKey(0.10f, 0.25f),
+                    new GradientAlphaKey(0.075f, 0.6f),
                     new GradientAlphaKey(0f, 1f)
                 });
             return g;

@@ -102,8 +102,88 @@ sits on the glowing parts and follows a river wherever it was routed. Move the l
 reroute it — the mist comes with it and there is nothing to keep in sync. Lava Pond and Lava Flow
 put molten in slot 2; the Volcano puts it in slot 3.
 
+### Small and many, not big and few
+
+**Width and Start Size are measured across a puff, in metres.** The puff mesh is a unit-*radius*
+blob, so the particle size is its radius and every number here is halved on the way in. Getting that
+wrong is what makes fog look like fog or like cellophane: the pond's mist was set to 12.5 m and
+arriving 32 m across, dying at 75 m on a pool barely wider than that, so two wisps covered the whole
+thing and there was no cloud shape left in it at any distance.
+
+The instinct is to reach for fewer, bigger puffs because they are cheaper. They are, and they do not
+read. A puff as wide as the thing it is rising off has no silhouette of its own — you see a
+translucent sheet lying across the view, and it does not get better with more of them, only thicker.
+
+So: keep a wisp to well under a third of whatever it comes off, and carry the density on the rate
+instead. **The rate has to go up by roughly the square of however much the size came down** — what
+you see through is the puff area a sightline crosses, not the number of puffs — so halving the width
+takes four times as many to look equally thick. At those sizes drop `Puff Detail` back to 0: the
+80-face blob was worth paying for when a wisp was 32 m across and its outline was most of what you
+saw, and at a third of that the facets are finer than the softness of the material.
+
+On LobbyIsland the mist sits at 5–7 m wisps dying under 12 m, and the columns at 8–12 m puffs. That
+is about 7,900 particles across all ten emitters at 20 faces each — 157k triangles worst case. Rate
+is the dial: it trades directly against how thick the fog looks and costs the count linearly, and
+per-puff opacity is the cheaper half of the same knob, which is why the gradients here sit a little
+stronger than they did when the puffs were three times the size.
+
 Particle systems do not run in edit mode. `ParticleSystem.Simulate` steps them by hand if you want
 to see them without entering play mode.
+
+## Keeping fog off the road
+
+Fog coming off a lava pool does not know there is a bridge over it. It rises through the deck, and
+the driver spends the crossing inside a cloud — on the one part of the map with a drop down either
+side. `MistShelter` is what tells it. Put one on the bridge (`GameObject > Effects > Keep Fog Under
+This`) and the fog underneath is held against the soffit and pushed out to the nearest edge, so it
+spills over the sides of the span instead of welling up through the road.
+
+The footprint is baked from **the triangles of the deck submesh**, the same trick the mist uses for
+where it is born, so one component follows a curved deck of changing width and height and rebakes
+itself when the bridge is rebuilt. It is not bridge-specific and does not know what a bridge is: the
+same component works on a tunnel mouth, a viaduct or a stretch of track.
+
+Three things happen to a wisp that would come up through the deck, and the order matters:
+
+1. **It levels off.** A lump tumbling end over end needs its widest measurement of headroom; a flat
+   one needs its thinnest. This is what lets the fog stay wide instead of being shrunk to nothing.
+2. **It shrinks**, but only as far as the gap makes it and only so fast, so nothing pops.
+3. **Its position is clamped**, which is the part that actually guarantees nothing is ever drawn
+   above the road while the other two catch up.
+
+`Clearance` is measured down from the *top* of the deck, so it has to be more than the thickness of
+the slab. `Margin` and `Release` shape the billow coming off the sides: the lid keeps reaching past
+the edge and climbs as it goes, which is what lets a wisp out gradually rather than snapping back
+to full size the moment it clears the deck.
+
+A plume that is **already above** a deck is left alone. Blocking it would cut a notch out of a smoke
+column that happens to rise beside a bridge; only the puffs that would pass *through* the deck are
+caught.
+
+### Three ways a lid leaks, all of them found the same way
+
+Every one of these was invisible in the numbers the shelter reports about itself and obvious the
+moment the test stopped asking "is the fog under my lid?" and started asking "**is the fog above the
+road?**" — raycasting each puff's top onto the bridge's own collider and reading the material slot
+it landed on. Anything measuring a system against its own model will agree with itself.
+
+1. **Take the lowest deck corner in a cell, not the highest.** A cell covers a few metres of a deck
+   that is climbing and banking at once, so the road inside one cell spans close to a metre, and the
+   triangle splat drags a value a cell further again. Keeping the highest corner puts the lid over
+   the road somewhere in every cell. This is what was still showing on the roundabout, 0.70 m proud.
+2. **Cover the whole top of the crossing, not the driving lane.** The footprint was baked from the
+   deck slot alone, so the verge and parapet strip outside it had no lid — and fog let up through
+   *that* comes out at the driver's elbow. Hence `Deck Slots`: Rock Bridge is deck, verge, parapet,
+   rock, so 3 takes everything you can stand on and leaves the legs out, which they have to be or
+   the lid lands on the lava they are standing in.
+3. **Release a puff against the road, not against the lid.** The lid sits a clearance below the deck
+   and climbs away from the edges, so a puff that wandered in from the side is routinely above the
+   lid while still buried in the deck. The "already clear, let it rise" test has to use the surface
+   itself or it hands those straight back.
+
+Measured on LobbyIsland after all three: **120 s simulated, sampled 120 times, both crossings, all
+nine emitters, nothing came up through either.** Before the shelter existed the pond bridge alone
+had 22 wisps through its deck at once, the worst 59 m above it.
 
 ## Colour on a night map
 
@@ -120,8 +200,10 @@ shows on gentle terrain where most of the surface has crusted over, and turns a 
 ## Files
 
     Scripts/   VolcanoNoise, VolcanoSettings, VolcanoMeshBuffer, VolcanoShape,
-               VolcanoMeshBuilder, VolcanoGenerator, LowPolyPuff, VolcanoSmoke, LavaMist
+               VolcanoMeshBuilder, VolcanoGenerator, LowPolyPuff, VolcanoSmoke, LavaMist,
+               MistShelter
     Editor/    VolcanoGeneratorEditor  (inspector, menu item, materials, dressing)
+               MistShelterEditor       (inspector, menu item)
 
 `VolcanoShape` and `VolcanoMeshBuilder` are pure maths — no scene objects, no asset loading, no
 global state, and none of Unity's native calls — so they compile and run outside the Editor and can

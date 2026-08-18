@@ -111,6 +111,16 @@ internal static class PropPlacement
         return Lean(groundNormal, tilt) * yaw;
     }
 
+    // The rotation baked into a prefab's root is part of the model, not a pose
+    // the brush is free to replace: a pack whose source art is Z-up carries a
+    // -90 degree X rotation there, and that rotation is the only reason the
+    // mushroom stands up at all. It goes on innermost, so yaw still spins the
+    // prop about its own axis and the lean still comes from the ground alone.
+    public static Quaternion Rotation(Vector3 groundNormal, float yawDegrees, float tilt, Quaternion model)
+    {
+        return Rotation(groundNormal, yawDegrees, tilt) * model;
+    }
+
     // Seats the prefab so its lowest mesh point lands on the surface, then
     // pushes it into the ground by `sink`. Sinking is worth having on a prop
     // brush: rocks and mushrooms bed into the ground in a way tree trunks

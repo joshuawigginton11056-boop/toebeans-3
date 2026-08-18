@@ -66,39 +66,46 @@ internal static class TreeFootprint
 
     // Measured from mesh bounds rather than Renderer.bounds so it needs no live
     // instance and can't read back stale for a frame after a transform change.
+    //
+    // Measured in the frame the prefab is *placed* in, which means the root's own
+    // rotation counts. Packs whose source art is Z-up carry a -90 degree X
+    // rotation on the prefab root, and the brush keeps that rotation, so a
+    // mushroom's height runs along the root's local Z. Measuring in unrotated
+    // root space would report that height as depth and hand back a base offset
+    // taken across the cap instead of down the stalk.
     private static TreeMeasurement Measure(GameObject prefab)
     {
         Transform root = prefab.transform;
-        Matrix4x4 toRoot = root.worldToLocalMatrix;
+
+        // worldToLocalMatrix strips the root's own transform off the children;
+        // rotation and scale then go back on, so what comes out is the offset
+        // from the pivot in world metres, oriented the way the prefab stands.
+        Matrix4x4 toPlacement =
+            Matrix4x4.TRS(Vector3.zero, root.localRotation, root.localScale) * root.worldToLocalMatrix;
         bool any = false;
-        Bounds local = new Bounds();
+        Bounds placed = new Bounds();
 
         foreach (MeshFilter mf in prefab.GetComponentsInChildren<MeshFilter>(true))
         {
             if (mf.sharedMesh == null) continue;
-            EncapsulateTransformed(ref local, ref any, mf.sharedMesh.bounds,
-                toRoot * mf.transform.localToWorldMatrix);
+            EncapsulateTransformed(ref placed, ref any, mf.sharedMesh.bounds,
+                toPlacement * mf.transform.localToWorldMatrix);
         }
         foreach (SkinnedMeshRenderer smr in prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
             if (smr.sharedMesh == null) continue;
-            EncapsulateTransformed(ref local, ref any, smr.sharedMesh.bounds,
-                toRoot * smr.transform.localToWorldMatrix);
+            EncapsulateTransformed(ref placed, ref any, smr.sharedMesh.bounds,
+                toPlacement * smr.transform.localToWorldMatrix);
         }
 
         if (!any) return default;
 
-        // worldToLocalMatrix stripped the root's own scale, so put it back to
-        // land in world metres. Trees get a random Y rotation, so the wider
-        // horizontal axis is the one that can end up facing a neighbour - take
-        // that as the radius.
-        Vector3 s = root.localScale;
-        float width = local.size.x * Mathf.Abs(s.x);
-        float depth = local.size.z * Mathf.Abs(s.z);
+        // Trees get a random Y rotation, so the wider horizontal axis is the one
+        // that can end up facing a neighbour - take that as the radius.
         return new TreeMeasurement
         {
-            radius = 0.5f * Mathf.Max(width, depth),
-            baseOffset = -local.min.y * Mathf.Abs(s.y),
+            radius = 0.5f * Mathf.Max(placed.size.x, placed.size.z),
+            baseOffset = -placed.min.y,
         };
     }
 

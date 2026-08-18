@@ -60,6 +60,15 @@ REAR_WHEEL_RADIUS = 0.30
 FRONT_WHEEL_WIDTH = 0.20
 REAR_WHEEL_WIDTH = 0.28
 
+# Suspension travel, mirrored from KartController.suspensionDistance and asserted against it
+# below. The arches are cut to clear a wheel across its whole travel rather than where it
+# happens to sit parked, so this number is as load-bearing here as the wheel radii are.
+SUSPENSION_TRAVEL = 0.28
+
+# Daylight between tyre and arch at the two ends of the travel. Small, because the arch is
+# already carrying the whole 280 mm sweep and every millimetre on top is visible as a gap.
+ARCH_GAP = 0.04
+
 # Matched to KartBlueprint's own reference points so the two agree about the same kart.
 ROLL_HOOP_TOP_Y = 1.40
 ROLL_HOOP_Z = -0.72
@@ -256,12 +265,27 @@ def add_coilover(bm, lower, upper):
 
 
 def add_fenders(bm):
-    """Plastic arches over each wheel, cut to the wheels KartDimensions places."""
+    """Plastic arches over each wheel, cut to clear the wheel across its whole travel.
+
+    The wheel is not where the arch used to think it was. KartController hangs each wheel
+    visual at `WheelCentre + up * compression`, so in the body's own frame a wheel climbs
+    the entire SUSPENSION_TRAVEL between full droop and full bump. These arches were cut at
+    `radius + 0.05` around the droop position, which the wheel leaves behind 50 mm into a
+    280 mm range — it was already through the fender sitting still, because static sag alone
+    is about 97 mm.
+
+    Clearing the whole sweep costs height and there is no way to dodge that: a tyre of
+    radius R sweeping T needs its arch's inner surface at 2R + T. What the centring buys is
+    where that cost lands. Sitting the arch on the middle of the travel rather than on
+    either end splits the daylight evenly above and below the tyre, so it reads as a
+    long-travel offroad arch instead of a fender left hanging over a wheel that ducked.
+    """
+    lift = SUSPENSION_TRAVEL * 0.5
     for side in (-1, 1):
-        add_arch(bm, (FRONT_TRACK * 0.5 * side, FRONT_WHEEL_RADIUS, FRONT_AXLE_Z),
-                 FRONT_WHEEL_RADIUS + 0.05, FRONT_WHEEL_WIDTH * 0.5 + 0.03)
-        add_arch(bm, (REAR_TRACK * 0.5 * side, REAR_WHEEL_RADIUS, REAR_AXLE_Z),
-                 REAR_WHEEL_RADIUS + 0.05, REAR_WHEEL_WIDTH * 0.5 + 0.03)
+        add_arch(bm, (FRONT_TRACK * 0.5 * side, FRONT_WHEEL_RADIUS + lift, FRONT_AXLE_Z),
+                 FRONT_WHEEL_RADIUS + lift + ARCH_GAP, FRONT_WHEEL_WIDTH * 0.5 + 0.03)
+        add_arch(bm, (REAR_TRACK * 0.5 * side, REAR_WHEEL_RADIUS + lift, REAR_AXLE_Z),
+                 REAR_WHEEL_RADIUS + lift + ARCH_GAP, REAR_WHEEL_WIDTH * 0.5 + 0.03)
 
 
 def add_arch(bm, centre, radius, half_width, thickness=0.03, segments=5,
@@ -541,6 +565,38 @@ def check_against_blueprint():
         raise AssertionError(
             "kart_buggy.py disagrees with KartBlueprint.cs:\n  - " + "\n  - ".join(drifted))
     print("  ok    dimensions agree with KartBlueprint.cs")
+
+    check_suspension_travel()
+
+
+def check_suspension_travel():
+    """Fail the build if the arches are cut for a travel the controller no longer uses.
+
+    Lives in KartController rather than KartBlueprint, so it is a second file to scrape -
+    but it belongs to the same class of mistake as the wheel radii. Cut an arch for 200 mm
+    of travel on a kart that has 280 and the tyre comes through the top of the fender, and
+    it does it while driving, which is the hardest place to notice a modelling error.
+    """
+    source = os.path.join(tb.REPO_ROOT, "Assets", "Kart", "Scripts", "KartController.cs")
+    if not os.path.exists(source):
+        print(f"  skip  KartController.cs not found at {source}")
+        return
+
+    with open(source, "r", encoding="utf-8") as handle:
+        text = handle.read()
+
+    match = re.search(r"\bpublic\s+float\s+suspensionDistance\s*=\s*(-?[\d.]+)f?\s*;", text)
+    if not match:
+        print("  skip  suspensionDistance not found in KartController.cs")
+        return
+
+    theirs = float(match.group(1))
+    if abs(theirs - SUSPENSION_TRAVEL) > 1e-6:
+        raise AssertionError(
+            f"kart_buggy.py cuts its arches for {SUSPENSION_TRAVEL} m of suspension travel, "
+            f"but KartController.suspensionDistance is {theirs}. The tyre will come through "
+            f"the fender - update SUSPENSION_TRAVEL and rebuild.")
+    print(f"  ok    arches cut for {SUSPENSION_TRAVEL} m of travel, matching KartController")
 
 
 if __name__ == "__main__":

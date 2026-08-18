@@ -68,13 +68,18 @@ internal static class TreeScatterTests
         log.AppendLine("Footprint measurement:");
         int fails = 0;
 
-        // guid, expected width in metres at prefab scale
-        var cases = new (string guid, float expectedWidth)[]
+        // guid, expected width in metres at prefab scale, tolerance
+        var cases = new (string guid, float expectedWidth, float tolerance)[]
         {
-            ("3e6544a86819bf942aafae3c6157f692", 0.55f), // 0.34 x 0.55
-            ("9adfa627fd4f72d4ab615012349e1825", 0.81f), // 0.81 x 0.58
-            ("45f6e9c008a8e944fb033319b4d388c1", 1.44f), // 1.44 x 0.66
-            ("3809b7ab36ff6c341a14d87904ba4ed0", 2.31f), // 1.67 x 2.31
+            // This one's prefab root carries a ~51 degree yaw, and the footprint
+            // is measured in the frame that rotation puts the model in - so what
+            // comes back is the 0.34 x 0.55 box turned in place, somewhere
+            // between its own wider side and the 0.64 m envelope of the turn.
+            // Hence the looser band here: the number is the art, not the maths.
+            ("3e6544a86819bf942aafae3c6157f692", 0.60f, 0.09f), // 0.34 x 0.55
+            ("9adfa627fd4f72d4ab615012349e1825", 0.81f, 0.05f), // 0.81 x 0.58
+            ("45f6e9c008a8e944fb033319b4d388c1", 1.44f, 0.05f), // 1.44 x 0.66
+            ("3809b7ab36ff6c341a14d87904ba4ed0", 2.31f, 0.05f), // 1.67 x 2.31
         };
 
         foreach (var c in cases)
@@ -86,10 +91,11 @@ internal static class TreeScatterTests
                 continue;
             }
             float width = TreeFootprint.Radius(p) * 2f;
-            bool ok = Mathf.Abs(width - c.expectedWidth) < 0.05f;
+            bool ok = Mathf.Abs(width - c.expectedWidth) < c.tolerance;
             fails += Check(log, ok,
-                $"{p.name} width {width:F2} m (expected ~{c.expectedWidth:F2} m, " +
-                "the wider horizontal axis since trees get a random Y rotation)");
+                $"{p.name} width {width:F2} m (expected {c.expectedWidth:F2} " +
+                $"+/- {c.tolerance:F2} m, the wider horizontal axis since trees " +
+                "get a random Y rotation)");
         }
         return fails;
     }
@@ -296,6 +302,19 @@ internal static class TreeScatterTests
         fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(scaled) - 1f) < 0.001f,
             $"root scale x2 -> offset {TreeFootprint.BaseOffset(scaled):F3} m (expected 1)");
 
+        // The Z-up case, which is what every mushroom and rock in the art packs
+        // is: the mesh stands 3 m along its own +Z from a base at z = 0, and a
+        // -90 degree X rotation on the root is what turns that into upright. The
+        // measurement has to follow the root's rotation - taken unrotated, this
+        // box reads as 0.5 m of overhang (half its 1 m thickness) and 1.5 m of
+        // radius (half its height), and the prop gets seated on its side.
+        GameObject zUp = MakeBox(new Vector3(2f, 1f, 3f), new Vector3(0f, 0f, 1.5f), 1f,
+            Quaternion.AngleAxis(-90f, Vector3.right));
+        fails += Check(log, Mathf.Abs(TreeFootprint.BaseOffset(zUp)) < 0.001f,
+            $"Z-up prefab, pivot at its base -> offset {TreeFootprint.BaseOffset(zUp):F3} m (expected 0)");
+        fails += Check(log, Mathf.Abs(TreeFootprint.Radius(zUp) - 1f) < 0.001f,
+            $"...and its height is not mistaken for width: radius {TreeFootprint.Radius(zUp):F3} m (expected 1)");
+
         // Cache is keyed on the GameObject, so it has to be dropped before the
         // test objects are - otherwise it holds destroyed keys.
         TreeFootprint.ClearCache();
@@ -303,15 +322,20 @@ internal static class TreeScatterTests
         DestroyBox(hanging);
         DestroyBox(floating);
         DestroyBox(scaled);
+        DestroyBox(zUp);
         return fails;
     }
 
     // A box of the given size, centred at `center` in root-local space, under a
     // root scaled uniformly by `scale`.
-    private static GameObject MakeBox(Vector3 size, Vector3 center, float scale)
+    private static GameObject MakeBox(Vector3 size, Vector3 center, float scale) =>
+        MakeBox(size, center, scale, Quaternion.identity);
+
+    private static GameObject MakeBox(Vector3 size, Vector3 center, float scale, Quaternion rootRotation)
     {
         var root = new GameObject("TestProp") { hideFlags = HideFlags.HideAndDontSave };
         root.transform.localScale = Vector3.one * scale;
+        root.transform.localRotation = rootRotation;
 
         var mesh = new Mesh { hideFlags = HideFlags.HideAndDontSave };
         Vector3 e = size * 0.5f;
@@ -376,6 +400,19 @@ internal static class TreeScatterTests
         float headingSpread = Vector3.Angle(rotA * Vector3.forward, rotB * Vector3.forward);
         fails += Check(log, headingSpread > 100f,
             $"yaw still varies the heading: {headingSpread:F0} degrees apart");
+
+        // A Z-up model, the shape every mushroom in the art packs takes: the -90
+        // degree X rotation on its prefab root is the only thing standing it up,
+        // so the brush has to turn that rotation rather than overwrite it. Its
+        // own +Z is the axis that must end up plumb at tilt 0 - overwriting laid
+        // the mushrooms flat on their sides whatever the tilt dial said.
+        var zUpModel = new Quaternion(-Mathf.Sqrt(0.5f), 0f, 0f, Mathf.Sqrt(0.5f));
+        Vector3 plumb = PropPlacement.Rotation(slope, 40f, 0f, zUpModel) * Vector3.forward;
+        fails += Check(log, SameDirection(plumb, Vector3.up),
+            "tilt 0 stands a Z-up model's own up axis plumb, on a slope");
+        Vector3 flush = PropPlacement.Rotation(slope, 40f, 1f, zUpModel) * Vector3.forward;
+        fails += Check(log, SameDirection(flush, slope),
+            "tilt 1 lays that same axis along the ground normal");
 
         // Degenerate normals: flat ground, and a normal opposed to up. Neither
         // may produce a NaN quaternion - one NaN transform corrupts a whole

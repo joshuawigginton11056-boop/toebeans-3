@@ -421,9 +421,19 @@ namespace Toebeans.Karting.EditorTools
             // has confirmed 25-40° edges over just a few metres (see [[lobbyisland-mountain-unroutable]]),
             // and no clearance margin worth keeping the visual alignment for clears a ledge the wheels
             // have only just started to drop into.
+            // Raised out of the visual floor pan on purpose, reversing the earlier judgement above.
+            // Two things forced it: the softer offroad springs sag about 97 mm rather than 45, and
+            // catching on terrain lips was a named complaint about how the kart drives. At the old
+            // centre the box's underside sat 170 mm up and barely 70 mm clear once settled, so every
+            // bridge edge and volcano approach caught the chassis before the wheels ever reached it.
+            //
+            // The cost is honest and accepted: the floor pan now hangs about 130 mm below the box, so
+            // on a hard compression the pan can visually clip a surface it is not colliding with.
+            // Brief cosmetic intersection is a far better trade than a kart that beaches on a kerb —
+            // the wheels are supposed to be what meets the world, and now they are.
             var body = root.AddComponent<BoxCollider>();
-            body.center = new Vector3(0f, 0.62f, -0.05f);
-            body.size = new Vector3(1.05f, 0.90f, 2.30f);
+            body.center = new Vector3(0f, 0.70f, -0.05f);
+            body.size = new Vector3(1.05f, 0.80f, 2.30f);
 
             // The roll hoop, so landing upside down rests on the bar rather than on the driver's head.
             var hoop = root.AddComponent<BoxCollider>();

@@ -822,13 +822,18 @@ namespace Volcano.EditorTools
             plume.transform.position = craterCentre;
             var smoke = ConfigureSmoke(plume, PlumeStyle.Smoke, VolcanoMaterials.SmokeMaterial());
             smoke.radius = poolRadius * 0.95f;
-            smoke.rate = 7f;
+            // Many small puffs rather than a few big ones. A puff as wide as the crater has no
+            // silhouette of its own against the sky and the column reads as a sheet; the rate
+            // carries the density instead, and has to rise by roughly the square of however much
+            // the size came down.
+            smoke.rate = 60f;
             smoke.riseSpeed = Mathf.Max(5f, volcano.Settings.height * 0.13f);
             smoke.lifetime = 16f;
-            smoke.startSize = poolRadius * 0.62f;
-            smoke.growth = 3.6f;
+            smoke.startSize = poolRadius * 0.36f;
+            smoke.growth = 2.4f;
             smoke.drift = 2.4f;
             smoke.turbulence = 1.7f;
+            smoke.puffDetail = 0;
             smoke.Rebuild();
 
             GameObject embers = Child(group, "Crater Embers");
@@ -838,7 +843,9 @@ namespace Volcano.EditorTools
             ember.rate = 22f;
             ember.riseSpeed = Mathf.Max(9f, volcano.Settings.height * 0.30f);
             ember.lifetime = 4.5f;
-            ember.startSize = 0.7f;
+            // Doubled rather than retuned: an ember was already about a metre and a half across,
+            // and this only makes up for Start Size having been half what it claimed.
+            ember.startSize = 1.4f;
             ember.growth = 1f;
             ember.drift = 1.4f;
             ember.turbulence = 2.4f;
@@ -847,27 +854,28 @@ namespace Volcano.EditorTools
             // --- mist off everything that is molten -------------------------------------------
             Material mistMaterial = VolcanoMaterials.MistMaterial();
 
-            // Rates are low on purpose. A few big slow wisps cost almost nothing and read as a fog
-            // bank; turning the rate up does not thicken the fog so much as replace the mountain
-            // with it, because every wisp is another translucent solid drawn over the last one.
+            // Wisps stay small and the rates carry the density. The instinct is the other way
+            // round - fewer, bigger puffs are cheaper - but a wisp the size of the thing it is
+            // rising off has no cloud shape to it at all, and what you get is a translucent sheet
+            // laid over the mountain. Small and many is what reads as fog.
             var pond = volcano.GetComponentInChildren<LavaPond.LavaPondGenerator>();
             if (pond != null)
             {
                 AddMist(group, "Crater Mist", pond.GetComponent<MeshRenderer>(), 2, mistMaterial,
-                        poolRadius * 0.5f, 7f, 0.9f);
+                        poolRadius * 0.29f, 60f, 0.9f);
             }
 
             var flows = volcano.GetComponentsInChildren<LavaFlow.LavaFlowGenerator>();
             for (int i = 0; i < flows.Length; i++)
             {
                 AddMist(group, "River Mist " + (i + 1), flows[i].GetComponent<MeshRenderer>(), 2,
-                        mistMaterial, 9f, 9f, 0.85f);
+                        mistMaterial, 5f, 82f, 0.85f);
             }
 
             // The mountain's own molten slot: the fissures near the summit and the seam in the
             // passage. Thin, but it is what stops those reading as painted-on stripes.
             AddMist(group, "Fissure Mist", volcano.GetComponent<MeshRenderer>(), 3, mistMaterial,
-                    3f, 4f, 0.5f);
+                    1.7f, 34f, 0.5f);
 
         }
 
@@ -907,7 +915,8 @@ namespace Volcano.EditorTools
             mist.width = width;
             mist.rate = rate;
             mist.rise = rise;
-            mist.growth = 1.7f;
+            mist.growth = 1.5f;
+            mist.puffDetail = 0;
             mist.Rebuild();
 
             EditorUtility.SetDirty(mist);

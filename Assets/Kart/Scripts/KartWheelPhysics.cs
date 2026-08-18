@@ -116,10 +116,24 @@ namespace Toebeans.Karting
         /// standstill, so without it nothing holds the kart sideways on a hill. Defaulted so existing
         /// callers and tests are unaffected.
         /// </param>
+        /// <param name="lateralPriority">
+        /// How much of the grip budget cornering gets first call on, 0 to 1.
+        ///
+        /// At 0 both axes are cut back together, which is honest tyre physics and is exactly what a
+        /// racing simulator wants: open the throttle mid-corner and you pay for it in grip, and past
+        /// the limit the back steps out. This game does not want that. Drifting here is meant to be a
+        /// thing the player asks for with the handbrake, not a thing the kart does to them for
+        /// accelerating out of a bend, so at 1 the sideways demand is served in full and drive takes
+        /// whatever the ellipse has left over.
+        ///
+        /// That still costs something — it has to, the grip is finite — but it costs acceleration
+        /// rather than control, and losing a little drive out of a corner is a fair trade a player can
+        /// feel and work with. Surface still scales both limits, so snow is still slippier than rock.
+        /// </param>
         public static TyreForceResult SolveTyreForce(
             float demandedForwardForce, float lateralVelocity, float lateralStiffness,
             float load, float forwardGripCoefficient, float lateralGripCoefficient,
-            float extraLateralDemand = 0f)
+            float extraLateralDemand = 0f, float lateralPriority = 0f)
         {
             float maxForward = Mathf.Max(forwardGripCoefficient * load, 0f);
             float maxLateral = Mathf.Max(lateralGripCoefficient * load, 0f);
@@ -138,12 +152,29 @@ namespace Toebeans.Karting
             float lateralFraction = maxLateral > 1e-4f ? demandedLateralForce / maxLateral : 0f;
             float combined = Mathf.Sqrt(forwardFraction * forwardFraction + lateralFraction * lateralFraction);
 
-            float scale = combined > 1f ? 1f / combined : 1f;
+            // Both axes cut back together — the symmetric clamp, and the honest one.
+            float symmetric = combined > 1f ? 1f / combined : 1f;
+
+            // Cornering served first, drive given the rest of the ellipse. The sideways demand is only
+            // clamped by its own limit, and what is left over after it is spent —
+            // sqrt(1 - lateral²) — is all the drive is allowed to ask for.
+            float absLateral = Mathf.Abs(lateralFraction);
+            float lateralFirst = absLateral > 1f ? 1f / absLateral : 1f;
+            float budgetLeft = Mathf.Sqrt(Mathf.Max(0f, 1f - Mathf.Min(absLateral * absLateral, 1f)));
+            float absForward = Mathf.Abs(forwardFraction);
+            float forwardLast = absForward > budgetLeft ? budgetLeft / Mathf.Max(absForward, 1e-4f) : 1f;
+
+            float priority = Mathf.Clamp01(lateralPriority);
+            float lateralScale = Mathf.Lerp(symmetric, lateralFirst, priority);
+            float forwardScale = Mathf.Lerp(symmetric, forwardLast, priority);
 
             return new TyreForceResult
             {
-                forwardForce = demandedForwardForce * scale,
-                lateralForce = demandedLateralForce * scale,
+                forwardForce = demandedForwardForce * forwardScale,
+                lateralForce = demandedLateralForce * lateralScale,
+                // Still the raw combined demand, whichever way it was clamped: this is what traction
+                // control reads and what flares the engine note, and both want to know the tyre was
+                // asked for more than it had — not which axis ended up conceding.
                 slipRatio = combined,
             };
         }
