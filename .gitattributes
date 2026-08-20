@@ -213,3 +213,13 @@ LightingData.asset     binary
 # files, splitting labels and for-loops in ways that fail without an error.
 *.cmd                   text eol=crlf
 *.bat                   text eol=crlf
+
+# Generated mesh libraries: procedural geometry that SceneMeshExtractor lifts out of scene
+# files so a scene edit does not rewrite hundreds of thousands of vertices. They are YAML
+# .asset files, but they are pure generated bulk - rewritten wholesale whenever a generator
+# runs, and never meaningfully hand-merged. LFS keeps that out of the git packfile and
+# re-uses unchanged libraries between pushes instead of re-packing them.
+#
+# This must stay BELOW the *.asset line above: last match wins, and the lfs macro has to
+# override unityyamlmerge for these. If two branches disagree on one, regenerate it.
+/Assets/GeneratedMeshes/**/*.asset  lfs
