@@ -55,6 +55,30 @@ namespace Barriers
         RandomYaw = 3
     }
 
+    /// <summary>What a section does when the line it is being placed on turns.</summary>
+    public enum BarrierCornerFit
+    {
+        /// <summary>
+        /// Dropped on the line and left straight. Right for rocks, posts and anything that is not
+        /// meant to join up — and wrong for fence sections on a corner, where a run of straights
+        /// piles into itself.
+        /// </summary>
+        Rigid = 0,
+
+        /// <summary>
+        /// Turned and stretched so each section spans from where the last one ended to where the
+        /// next one starts. The sections stay straight, so a corner reads as a chain of flats, but
+        /// nothing overlaps and nothing gaps. Keeps the prefab link.
+        /// </summary>
+        FitEnds = 1,
+
+        /// <summary>
+        /// Warped so the section itself follows the line. A proper curve through a corner, at the
+        /// cost of a generated mesh per section, which means no prefab link and no instancing.
+        /// </summary>
+        Bend = 2
+    }
+
     public enum BarrierPickMode
     {
         /// <summary>Pick from the list at random, honouring the weights.</summary>
@@ -196,15 +220,38 @@ namespace Barriers
         [Tooltip("Metres to bury every object, so nothing floats on uneven ground.")]
         [Min(0f)] public float sinkDepth = 0.15f;
 
-        [Tooltip("Smallest random scale, as a multiple of the prefab's own.")]
+        [Tooltip("Smallest random scale, as a multiple of the prefab's own. Set this and Largest to " +
+                 "the same number to scale the whole run.\n\n" +
+                 "On a fitted or bent run the slot each section fills is scaled with it, so a " +
+                 "section scaled up is longer as well as taller and the run still joins end to end.")]
         [Min(0.01f)] public float scaleMin = 1f;
 
         [Tooltip("Largest random scale, as a multiple of the prefab's own.")]
         [Min(0.01f)] public float scaleMax = 1f;
 
         [Tooltip("Off lets width, height and depth vary independently. Distorts a model, so it " +
-                 "suits rocks and not fences.")]
+                 "suits rocks and not fences.\n\n" +
+                 "On a fitted or bent run these are read against the line rather than the model: " +
+                 "X across it, Y up, Z along it.")]
         public bool uniformScale = true;
+
+        // ------------------------------------------------------------------ corners
+
+        [Header("Corners")]
+        [Tooltip("What a section does where the line turns.\n\n" +
+                 "Rigid drops it on the line straight, which is what rocks and posts want and what " +
+                 "makes fence sections pile into each other on a bend. Fit Ends turns and stretches " +
+                 "each section to reach the next one, so a corner joins up but reads as flats. Bend " +
+                 "warps the model itself along the line, so the section curves.\n\n" +
+                 "Both fitting modes need facing Along Path, and take their section length from the " +
+                 "spacing — press Fit Spacing To Prefab first.")]
+        public BarrierCornerFit cornerFit = BarrierCornerFit.Rigid;
+
+        [Tooltip("Bend mode. How finely a section is cut along its length before it is warped, in " +
+                 "metres. This is what the curve is made of: a model with nothing between its two " +
+                 "ends has nothing to bend, so it is cut into rings first. 0.25 is smooth on a " +
+                 "hairpin; raise it on a long run if rebuilds get heavy.")]
+        [Range(0.05f, 2f)] public float bendRingSpacing = 0.25f;
 
         // ------------------------------------------------------------------ filters
 
@@ -224,8 +271,14 @@ namespace Barriers
         [Header("Blocking Wall")]
         [Tooltip("Sweep an invisible collider along the line as well.\n\n" +
                  "Spaced objects do not close the edge: a kart fits between two rocks. This puts a " +
-                 "solid wall behind them that nothing can drive through, with no renderer on it.")]
-        public bool buildBlockingWall = false;
+                 "solid wall behind them that nothing can drive through, with no renderer on it.\n\n" +
+                 "Turn this off only for a line that is pure decoration — the prefabs carry no " +
+                 "colliders, so a line without the wall is a barrier you drive straight through.")]
+        // On by default: the prefabs deliberately have no colliders of their own, so this switch is
+        // the only thing standing between a barrier and scenery. Defaulting it off meant every line
+        // dropped into a scene was decorative until somebody remembered to tick it, and six of the
+        // seven on LavaWorld never were — the whole run was drive-through.
+        public bool buildBlockingWall = true;
 
         [Tooltip("How far the wall stands above the ground.")]
         [Min(0.1f)] public float wallHeight = 2.5f;
@@ -236,8 +289,20 @@ namespace Barriers
         [Tooltip("How far the wall is buried, so a bumpy surface leaves no gap under it.")]
         [Min(0f)] public float wallEmbed = 1f;
 
-        [Tooltip("Sweep interval for the wall, in metres. Coarser is cheaper and cuts corners more.")]
+        [Tooltip("Longest sweep interval for the wall, in metres. Corners subdivide below this on " +
+                 "their own, so this is really the cost of the straights.")]
         [Range(0.5f, 20f)] public float wallSegmentLength = 2f;
+
+        [Tooltip("Most the wall may turn between two sweep points, in degrees. This is what makes " +
+                 "a corner something a kart slides around rather than catches on: smaller means " +
+                 "the wall is cut into finer facets through the bend, so there is no edge to snag. " +
+                 "4 is smooth at kart speeds; go lower only if you can still feel a corner.")]
+        [Range(0.5f, 15f)] public float wallCornerDetail = 4f;
+
+        [Tooltip("Physics material on the wall. The point of it is friction: on the default " +
+                 "material a kart leaning on the barrier grinds to a stop instead of gliding. " +
+                 "Leave this empty and the line picks up Barrier_Slide, which is frictionless.")]
+        public PhysicsMaterial wallMaterial;
 
         // ------------------------------------------------------------------ output
 
@@ -365,6 +430,23 @@ namespace Barriers
             /// <summary>Which entry in <see cref="prefabs"/> goes here, or -1 if the list is empty.</summary>
             public int PrefabIndex;
 
+            /// <summary>Metres along the route where this placement sits.</summary>
+            public float Distance;
+
+            /// <summary>
+            /// Metres of line this placement owns, which is the gap to the next one. A rigid
+            /// placement ignores it; a fitted or bent section is made to fill it exactly, which is
+            /// what closes the joins round a corner.
+            /// </summary>
+            public float Span;
+
+            /// <summary>
+            /// Sideways wander off the row, in metres. Already inside <see cref="Position"/> for a
+            /// rigid placement; the fitted and bent modes rebuild their own frame off the route, so
+            /// they need it separately.
+            /// </summary>
+            public float Lateral;
+
             /// <summary>Facing, already flattened into the plane the object stands in.</summary>
             public Vector3 Forward;
 
@@ -420,12 +502,31 @@ namespace Barriers
             }
             step = Mathf.Max(0.05f, step);
 
+            // A ring that fits to the path has to come back to its own start, and a step that does
+            // not divide the loop leaves it ending on a part section. Nudging the step to the
+            // nearest whole number of sections closes the seam, and a few centimetres of stretch
+            // spread over a lap is not something you can see. Measured on the scaled section,
+            // because that is what actually gets laid down.
+            if (closedLoop && FitsToPath && spacingJitter <= 0f && spacingMode == BarrierSpacingMode.Distance)
+            {
+                float slot = Mathf.Max(0.05f, step * SectionScaleAverage);
+                int whole = Mathf.Max(1, Mathf.RoundToInt(usable / slot));
+                step = usable / whole / Mathf.Max(0.01f, SectionScaleAverage);
+            }
+
             float d = startOffset;
             if (staggerSides && routeIndex % 2 == 1) d += step * 0.5f;
 
             float end = route.Length - endMargin;
-            // On a closed loop the last placement would land on top of the first.
-            if (closedLoop) end -= step * 0.5f;
+            // On a closed loop the last placement would land on top of the first. A fitted section
+            // fills the slot ahead of it rather than sitting on the point, so it stops a whole
+            // section short instead of half of one — on an open line too, or the last one runs off
+            // the end and is squashed against it.
+            // The room a fitted section needs is its slot at the largest scale it might draw, so a
+            // scaled-up run stops short of the end instead of running off it.
+            float reserve = step * Mathf.Max(scaleMin, scaleMax);
+            if (closedLoop) end -= FitsToPath ? reserve : step * 0.5f;
+            else if (FitsToPath) end -= reserve;
 
             int placedThisRoute = 0;
             int guard = 0;
@@ -442,7 +543,20 @@ namespace Barriers
                 if (spacingMode == BarrierSpacingMode.Count && placedThisRoute >= Mathf.Max(1, count)) break;
 
                 Placement p;
-                if (TrySolveOne(route, rng, d, out p)) { list.Add(p); placedThisRoute++; }
+                if (TrySolveOne(route, rng, d, advance, out p))
+                {
+                    // A fitted section is scaled along the line as well as across it, so its slot
+                    // grows with it. Without this, scaling up would mean the same 4 m of line with
+                    // a fatter model squeezed into it, and a run of mixed scales would not join.
+                    if (FitsToPath)
+                    {
+                        advance = Mathf.Max(0.05f, advance * p.Scale.z);
+                        p.Span = advance;
+                    }
+
+                    list.Add(p);
+                    placedThisRoute++;
+                }
                 else skipped++;
 
                 d += advance;
@@ -451,7 +565,29 @@ namespace Barriers
             return list;
         }
 
-        bool TrySolveOne(BarrierRoute route, BarrierRng rng, float distance, out Placement placement)
+        /// <summary>
+        /// Whether sections are made to follow the line rather than being dropped on it.
+        ///
+        /// Fitting a section to the path means turning it onto the line and stretching it to the
+        /// next one, which only means anything for something laid end to end. A row facing outwards
+        /// or turned at random is not a run of joined sections, so it stays rigid whatever the
+        /// corner setting says.
+        /// </summary>
+        public bool FitsToPath
+        {
+            get { return cornerFit != BarrierCornerFit.Rigid && facing == BarrierFacing.AlongPath; }
+        }
+
+        /// <summary>
+        /// The scale a section is expected to come out at. Used where a slot has to be sized before
+        /// its section has been drawn — closing a loop, and leaving room at the end of a line.
+        /// </summary>
+        public float SectionScaleAverage
+        {
+            get { return Mathf.Max(0.01f, (scaleMin + scaleMax) * 0.5f); }
+        }
+
+        bool TrySolveOne(BarrierRoute route, BarrierRng rng, float distance, float span, out Placement placement)
         {
             placement = default(Placement);
 
@@ -517,6 +653,9 @@ namespace Barriers
             if (forward.sqrMagnitude < 1e-6f) forward = Vector3.forward;
 
             placement.Position = pos + Vector3.up * (heightOffset - sinkDepth);
+            placement.Distance = distance;
+            placement.Span = span;
+            placement.Lateral = lateral;
             placement.Forward = forward.normalized;
             placement.Up = up;
             placement.Yaw = yaw;
@@ -597,6 +736,10 @@ namespace Barriers
             LastSkipped = 0;
             LastLength = 0f;
 
+            // Rings are cut in the model's own space and then stretched along with it, so a run
+            // scaled up is cut finer to land back on the ring spacing that was asked for.
+            var cache = new BuildCache(bendRingSpacing / SectionScaleAverage);
+
             List<BarrierRoute> routes = BuildRoutes();
             for (int r = 0; r < routes.Count; r++)
             {
@@ -610,7 +753,7 @@ namespace Barriers
 
                 for (int i = 0; i < placements.Count; i++)
                 {
-                    if (Spawn(placements[i], container, r, i)) LastPlaced++;
+                    if (Spawn(placements[i], route, container, r, i, cache)) LastPlaced++;
                 }
             }
 
@@ -621,7 +764,11 @@ namespace Barriers
         public void ClearInstances()
         {
             Transform container = transform.Find(SafeContainerName);
-            if (container != null) DestroySafely(container.gameObject);
+            if (container != null)
+            {
+                DiscardBentMeshes(container);
+                DestroySafely(container.gameObject);
+            }
 
             Transform wall = transform.Find(WallObjectName);
             if (wall != null)
@@ -648,11 +795,18 @@ namespace Barriers
             return container.gameObject;
         }
 
-        bool Spawn(Placement p, Transform container, int routeIndex, int ordinal)
+        bool Spawn(Placement p, BarrierRoute route, Transform container, int routeIndex, int ordinal,
+                   BuildCache cache)
         {
             if (p.PrefabIndex < 0 || p.PrefabIndex >= prefabs.Count) return false;
             GameObject prefab = prefabs[p.PrefabIndex].prefab;
             if (prefab == null) return false;
+
+            string name = string.Format("{0}_{1}_{2:D3}", prefab.name, routeIndex == 0 ? "A" : "B", ordinal);
+
+            if (FitsToPath && cornerFit == BarrierCornerFit.Bend &&
+                SpawnBent(p, route, prefab, container, name, cache))
+                return true;
 
             GameObject go = null;
 #if UNITY_EDITOR
@@ -665,15 +819,186 @@ namespace Barriers
 #endif
             if (go == null) go = Instantiate(prefab, container);
 
-            go.transform.SetPositionAndRotation(p.Position, p.Rotation);
-            go.transform.localScale = Vector3.Scale(prefab.transform.localScale, p.Scale);
-            go.name = string.Format("{0}_{1}_{2:D3}", prefab.name, routeIndex == 0 ? "A" : "B", ordinal);
+            // A bend that could not be built — a prefab with no readable mesh under it — falls back
+            // to fitting the ends, which needs nothing but the model's length. Better a joined run
+            // of straights than a hole in the barrier.
+            if (!FitsToPath || !PlaceFitted(go, p, route, prefab, cache))
+            {
+                go.transform.SetPositionAndRotation(p.Position, p.Rotation);
+                go.transform.localScale = Vector3.Scale(prefab.transform.localScale, p.Scale);
+            }
 
+            go.name = name;
+            MarkStatic(go);
+            return true;
+        }
+
+        /// <summary>
+        /// Turns a section onto the chord of its slot and stretches it to reach the end of it, so
+        /// consecutive sections meet however hard the line turns.
+        /// </summary>
+        bool PlaceFitted(GameObject go, Placement p, BarrierRoute route, GameObject prefab, BuildCache cache)
+        {
+            BarrierSectionBender.SectionAxes axes;
+            if (!cache.Axes(prefab, out axes)) return false;
+
+            Vector3 aPos, aRight, aUp, aForward, bPos, bRight, bUp, bForward;
+            if (!BarrierSectionBender.Frame(route, p.Distance, alignToGroundNormal,
+                                            out aPos, out aRight, out aUp, out aForward)) return false;
+            if (!BarrierSectionBender.Frame(route, p.Distance + p.Span, alignToGroundNormal,
+                                            out bPos, out bRight, out bUp, out bForward)) return false;
+
+            Vector3 chord = bPos - aPos;
+            float length = chord.magnitude;
+            if (length < 1e-3f) return false;
+
+            Vector3 up = (aUp + bUp).sqrMagnitude > 1e-6f ? (aUp + bUp).normalized : aUp;
+            Vector3 forward = Vector3.ProjectOnPlane(chord, up);
+            if (forward.sqrMagnitude < 1e-6f) forward = aForward;
+            forward = forward.normalized;
+            Vector3 right = Vector3.Cross(up, forward);
+
+            Quaternion rotation = Quaternion.LookRotation(forward, up);
+            float correction = BarrierSectionBender.YawCorrection(axes.Along);
+            if (correction != 0f) rotation *= Quaternion.Euler(0f, correction, 0f);
+
+            go.transform.SetPositionAndRotation(
+                (aPos + bPos) * 0.5f + right * p.Lateral + Vector3.up * (heightOffset - sinkDepth),
+                rotation);
+
+            // The measured length is the model at scale 1, so the run axis takes the fit outright
+            // rather than multiplying the prefab's own scale by it. The other two carry the
+            // placement's scale, read against the line — X across it, Y up — which is the same way
+            // round a bent section reads them.
+            Vector3 root = prefab.transform.localScale;
+            float fit = length / axes.Length;
+
+            go.transform.localScale = axes.Along == 0
+                ? new Vector3(fit, root.y * p.Scale.y, root.z * p.Scale.x)
+                : new Vector3(root.x * p.Scale.x, root.y * p.Scale.y, fit);
+            return true;
+        }
+
+        /// <summary>
+        /// Builds one section as a mesh warped along its slot, and hangs it under the container as
+        /// a plain object.
+        ///
+        /// The result is not a prefab instance — the geometry is not the prefab's any more — so it
+        /// keeps the materials, the renderer settings and the tint, and the mesh is owned by this
+        /// line and thrown away on the next rebuild.
+        /// </summary>
+        bool SpawnBent(Placement p, BarrierRoute route, GameObject prefab, Transform container,
+                       string name, BuildCache cache)
+        {
+            BarrierSectionSource source = cache.Source(prefab);
+            if (source == null || !source.IsValid) return false;
+
+            Vector3 pivot, right, up, forward;
+            if (!BarrierSectionBender.Frame(route, p.Distance + p.Span * 0.5f, alignToGroundNormal,
+                                            out pivot, out right, out up, out forward)) return false;
+
+            // The mesh is built in the container's space around a pivot at the middle of the
+            // section, so the object has bounds where it stands rather than back at the line's
+            // origin, and a rotated or scaled parent still lands it in the right place.
+            Matrix4x4 toLocal = container.worldToLocalMatrix;
+            Vector3 localPivot = toLocal.MultiplyPoint3x4(pivot);
+
+            // The template was read at the model's own scale, so the prefab root's scale goes back
+            // on across and up the section. Along the section it would mean nothing: that axis is
+            // spent on the slot, however long the model itself is.
+            Vector3 rootScale = prefab.transform.localScale;
+            float across = Mathf.Abs(source.Axes.Along == 0 ? rootScale.z : rootScale.x);
+
+            _bendScratch.CopyFrom(source.Template);
+            if (!BarrierSectionBender.Bend(_bendScratch, route, source.Axes, p.Distance, p.Span,
+                                           p.Scale.x * across, p.Scale.y * rootScale.y, p.Lateral,
+                                           heightOffset - sinkDepth, alignToGroundNormal,
+                                           toLocal, localPivot))
+                return false;
+
+            Mesh mesh = BarrierSectionSource.ToMesh(_bendScratch, BentMeshPrefix + prefab.name);
+            if (mesh == null) return false;
+
+            var go = new GameObject(name);
+            go.transform.SetParent(container, false);
+            go.transform.SetLocalPositionAndRotation(localPivot, Quaternion.identity);
+            go.transform.localScale = Vector3.one;
+
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            source.ApplyRendererSettings(go.AddComponent<MeshRenderer>());
+            CopyTint(prefab, go);
+            MarkStatic(go);
+            return true;
+        }
+
+        /// <summary>
+        /// Carries the prefab's tint over to a bent copy.
+        ///
+        /// Through JsonUtility rather than the editor's serialised-object copy, so a run built in
+        /// play mode gets its colours too. It moves the serialised fields and nothing else, which
+        /// is all a tint is.
+        /// </summary>
+        static void CopyTint(GameObject prefab, GameObject go)
+        {
+            var source = prefab.GetComponent<BarrierTint>();
+            if (source == null) return;
+
+            var copy = go.AddComponent<BarrierTint>();
+            JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(source), copy);
+            copy.Apply();
+        }
+
+        void MarkStatic(GameObject go)
+        {
 #if UNITY_EDITOR
             if (markInstancesStatic && !Application.isPlaying)
                 UnityEditor.GameObjectUtility.SetStaticEditorFlags(go, StaticFlags);
 #endif
-            return true;
+        }
+
+        /// <summary>Scratch the bend is written into, so a long run does not allocate one per section.</summary>
+        [System.NonSerialized] readonly BarrierSectionBuffer _bendScratch = new BarrierSectionBuffer();
+
+        /// <summary>
+        /// What a build has already worked out about the prefabs in the list.
+        ///
+        /// Measuring a prefab and reading its meshes depends only on the prefab, so it happens once
+        /// per build rather than once per placement — thirty sections off one model share a single
+        /// subdivided template and differ only in the bend applied to a copy of it.
+        /// </summary>
+        sealed class BuildCache
+        {
+            readonly Dictionary<GameObject, BarrierSectionSource> _sources =
+                new Dictionary<GameObject, BarrierSectionSource>();
+            readonly Dictionary<GameObject, BarrierSectionBender.SectionAxes> _axes =
+                new Dictionary<GameObject, BarrierSectionBender.SectionAxes>();
+
+            readonly float _ringSpacing;
+
+            /// <summary>Ceiling on a subdivided section, so a dense model cannot hang the editor.</summary>
+            const int VertexBudget = 40000;
+
+            public BuildCache(float ringSpacing) { _ringSpacing = ringSpacing; }
+
+            public bool Axes(GameObject prefab, out BarrierSectionBender.SectionAxes axes)
+            {
+                if (_axes.TryGetValue(prefab, out axes)) return axes.Length > 1e-4f;
+
+                BarrierSectionSource.Measure(prefab, out axes);
+                _axes[prefab] = axes;
+                return axes.Length > 1e-4f;
+            }
+
+            public BarrierSectionSource Source(GameObject prefab)
+            {
+                BarrierSectionSource source;
+                if (_sources.TryGetValue(prefab, out source)) return source;
+
+                source = BarrierSectionSource.Extract(prefab, _ringSpacing, VertexBudget);
+                _sources[prefab] = source;
+                _axes[prefab] = source.Axes;
+                return source;
+            }
         }
 
         void BuildWall(List<BarrierRoute> routes)
@@ -702,6 +1027,7 @@ namespace Barriers
             if (collider == null) collider = wallObject.AddComponent<MeshCollider>();
             wallObject.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             wallObject.transform.localScale = Vector3.one;
+            collider.sharedMaterial = ResolveWallMaterial();
 
             var verts = new List<Vector3>();
             var tris = new List<int>();
@@ -712,7 +1038,7 @@ namespace Barriers
             {
                 BarrierWallBuffer part = BarrierWallBuilder.Build(
                     routes[r], wallHeight, wallThickness, wallEmbed, wallSegmentLength,
-                    transform.worldToLocalMatrix);
+                    wallCornerDetail, transform.worldToLocalMatrix);
 
                 if (part.IsEmpty) continue;
 
@@ -735,6 +1061,24 @@ namespace Barriers
 
             if (verts.Count > 0) collider.sharedMesh = combined;
             else DestroySafely(combined);
+        }
+
+        /// <summary>
+        /// The wall's physics material, falling back to the frictionless one shipped with the pack.
+        ///
+        /// The fallback is resolved in the editor and written back to the field, so a build gets a
+        /// real reference rather than a lookup that is not there at runtime.
+        /// </summary>
+        PhysicsMaterial ResolveWallMaterial()
+        {
+            if (wallMaterial != null) return wallMaterial;
+
+#if UNITY_EDITOR
+            wallMaterial = UnityEditor.AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(
+                "Assets/Barriers/Barrier_Slide.asset");
+            if (wallMaterial != null) UnityEditor.EditorUtility.SetDirty(this);
+#endif
+            return wallMaterial;
         }
 
         /// <summary>
@@ -768,6 +1112,9 @@ namespace Barriers
 
         const string WallObjectName = "Blocking Wall";
 
+        /// <summary>Marks a mesh this line generated for a bent section, so a rebuild can free it.</summary>
+        public const string BentMeshPrefix = "BarrierBend_";
+
         Transform GetOrCreateContainer()
         {
             Transform container = transform.Find(SafeContainerName);
@@ -781,7 +1128,34 @@ namespace Barriers
         static void ClearChildren(Transform container)
         {
             while (container.childCount > 0)
-                DestroySafely(container.GetChild(0).gameObject);
+            {
+                Transform child = container.GetChild(0);
+                DiscardBentMeshes(child);
+                DestroySafely(child.gameObject);
+            }
+        }
+
+        /// <summary>
+        /// Frees the meshes a bent run generated.
+        ///
+        /// Destroying the object is not enough: a mesh built in script is owned by whoever made it,
+        /// and one left behind by a rebuild is leaked for the rest of the session. Two things have
+        /// to be true before one is destroyed — it carries this line's prefix, and it is not an
+        /// asset — so a prefab instance's shared mesh is never touched.
+        /// </summary>
+        static void DiscardBentMeshes(Transform root)
+        {
+            var filters = root.GetComponentsInChildren<MeshFilter>(true);
+            for (int i = 0; i < filters.Length; i++)
+            {
+                Mesh mesh = filters[i].sharedMesh;
+                if (mesh == null || !mesh.name.StartsWith(BentMeshPrefix)) continue;
+#if UNITY_EDITOR
+                if (UnityEditor.AssetDatabase.Contains(mesh)) continue; // somebody baked it; leave it
+#endif
+                filters[i].sharedMesh = null;
+                DestroySafely(mesh);
+            }
         }
 
         static void DestroySafely(Object o)

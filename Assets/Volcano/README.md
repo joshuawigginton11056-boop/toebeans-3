@@ -121,7 +121,7 @@ takes four times as many to look equally thick. At those sizes drop `Puff Detail
 80-face blob was worth paying for when a wisp was 32 m across and its outline was most of what you
 saw, and at a third of that the facets are finer than the softness of the material.
 
-On LobbyIsland the mist sits at 5–7 m wisps dying under 12 m, and the columns at 8–12 m puffs. That
+On LavaWorld the mist sits at 5–7 m wisps dying under 12 m, and the columns at 8–12 m puffs. That
 is about 7,900 particles across all ten emitters at 20 faces each — 157k triangles worst case. Rate
 is the dial: it trades directly against how thick the fog looks and costs the count linearly, and
 per-puff opacity is the cheaper half of the same knob, which is why the gradients here sit a little
@@ -181,7 +181,7 @@ it landed on. Anything measuring a system against its own model will agree with 
    lid while still buried in the deck. The "already clear, let it rise" test has to use the surface
    itself or it hands those straight back.
 
-Measured on LobbyIsland after all three: **120 s simulated, sampled 120 times, both crossings, all
+Measured on LavaWorld after all three: **120 s simulated, sampled 120 times, both crossings, all
 nine emitters, nothing came up through either.** Before the shelter existed the pond bridge alone
 had 22 wisps through its deck at once, the worst 59 m above it.
 

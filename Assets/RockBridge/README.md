@@ -39,7 +39,7 @@ either the deck through the lava or the legs on top of it.
    over to the legs, or turn the fill off and let the legs carry everything. The inspector reports
    how far it actually ran and warns past half the crossing.
 6. **Landing Sink** — leave it at 0. The deck lands on the solid ground at both ends, so the join
-   is already flush; measured on LobbyIsland's bridge the ground meets the deck to within 21 mm.
+   is already flush; measured on LavaWorld's bridge the ground meets the deck to within 21 mm.
 
 There is deliberately **no "reshape the terrain to fit the bridge" button**. One was written and
 removed, and the reason is worth knowing before anyone adds it back: the landing height is read off
@@ -104,7 +104,7 @@ the deck will happily fly through it. Switch on **Use Fixed Datum** and type the
 ## Verified
 
 57 headless assertions in the harness described by the project's `unity-headless-csharp-verification`
-note, run against a synthetic version of LobbyIsland's pond: deck smoothness (worst bump 0.04 m at
+note, run against a synthetic version of LavaWorld's pond: deck smoothness (worst bump 0.04 m at
 3 m section spacing), constant width across 120 random configurations (worst drift 0.00001 m),
 closed-manifold edge test across 24 configurations (no open or over-shared edges), triangle facing,
 leg behaviour under changing deck height, landing flushness at every height, determinism, and 300

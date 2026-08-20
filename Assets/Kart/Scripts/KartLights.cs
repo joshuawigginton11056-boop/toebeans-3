@@ -13,7 +13,7 @@ namespace Toebeans.Karting
     /// onto a shared material, because the kart's materials are project assets: writing to them would
     /// light every kart in the scene, and in the Editor it would light them permanently.
     ///
-    /// Off by default. LobbyIsland is a daylit map and headlights cost per-pixel lights for nothing
+    /// Off by default. LavaWorld is a daylit map and headlights cost per-pixel lights for nothing
     /// in the middle of the day; they are for the caves, the volcano interior and dusk.
     /// </summary>
     [DisallowMultipleComponent]

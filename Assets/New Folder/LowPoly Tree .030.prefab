@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 1569597775775339213}
   - component: {fileID: 5797761560761228575}
   - component: {fileID: 2787615217736823847}
+  - component: {fileID: 4615292311398025138}
   m_Layer: 0
   m_Name: LowPoly Tree .030
   m_TagString: Untagged
@@ -90,3 +91,26 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!136 &4615292311398025138
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2856363274099223718}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.005153319
+  m_Height: 0.042300515
+  m_Direction: 1
+  m_Center: {x: 0.00041228958, y: -0.002950428, z: -0.00041728636}

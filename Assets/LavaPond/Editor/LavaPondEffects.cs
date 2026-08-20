@@ -42,7 +42,7 @@ namespace LavaPond.EditorTools
             if (pond == null) return null;
 
             // Everything is sized in world metres, so the pond's scale has to come into it: on
-            // LobbyIsland the pond is a 12 m mesh at 4x, which is a 48 m pool.
+            // LavaWorld the pond is a 12 m mesh at 4x, which is a 48 m pool.
             float scale = UniformScale(pond.transform);
             float radius = Mathf.Max(0.5f, pond.Settings.radius * scale);
 
@@ -132,7 +132,7 @@ namespace LavaPond.EditorTools
             if (billow)
             {
                 // Slow, long-lived, and small next to the pool. Size is the setting that decides
-                // whether this reads as fog at all: measured on LobbyIsland, wisps were arriving
+                // whether this reads as fog at all: measured on LavaWorld, wisps were arriving
                 // 32 m across and dying at 75 m on a pool barely wider than that, so two of them
                 // covered it and the bank was a translucent sheet with no cloud in it. A quarter
                 // of the radius, dying at under half, gives the pool a dozen lumps instead.
@@ -227,7 +227,7 @@ namespace LavaPond.EditorTools
                 smoke.riseSpeed = Mathf.Clamp(radius * 0.28f, 3f, 12f);
                 smoke.lifetime = 14f;
                 // A puff has to be a good deal smaller than the column it is building, or the whole
-                // thing is one lump with no smoke in it: measured on LobbyIsland, this was putting
+                // thing is one lump with no smoke in it: measured on LavaWorld, this was putting
                 // 34 m puffs into a 30 m column and they were dying at 101 m. Small and many is the
                 // only way a column reads as smoke rather than as a shape.
                 smoke.startSize = Mathf.Clamp(radius * (hasVent ? 0.125f : 0.16f), 1.5f, 16f);

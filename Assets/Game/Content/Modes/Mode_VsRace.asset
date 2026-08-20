@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cadaf4af8ebc5474a990ad3b32c839ee, type: 3}
+  m_Name: Mode_VsRace
+  m_EditorClassIdentifier: Toebeans.Game::Toebeans.Game.GameModeDefinition
+  modeId: vs_race
+  displayName: VS Race
+  description: A single race on a track everyone agrees on.
+  icon: {fileID: 0}
+  sortOrder: 0
+  minRacers: 1
+  maxRacers: 8
+  allowsAiFill: 1
+  defaultLapCount: 3
+  itemsEnabled: 1
+  usesTrackSelect: 1
+  isTeamMode: 0

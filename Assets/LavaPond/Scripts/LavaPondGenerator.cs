@@ -170,7 +170,7 @@ namespace LavaPond
             if (local.sqrMagnitude < 1e-8f) return false;
 
             // The molten projection runs its V axis at this angle clockwise from the pond's own +Z,
-            // so the direction has to be read in the pond's space. Lava Pond on LobbyIsland is
+            // so the direction has to be read in the pond's space. Lava Pond on LavaWorld is
             // turned 115 degrees; taking it off the world axes instead puts the pool's lava that
             // far out from the river feeding it.
             float angle = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;

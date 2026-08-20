@@ -70,7 +70,7 @@ namespace RockBridge
         /// <summary>
         /// Two nodes, 140 m apart, which is a straight crossing wide enough to be worth bridging.
         /// Sized against this project's pools rather than against a lap time — the lava pond on
-        /// LobbyIsland is about 95 x 114 m, so this reaches across it with a landing at each end.
+        /// LavaWorld is about 95 x 114 m, so this reaches across it with a landing at each end.
         /// </summary>
         static List<BridgeNode> DefaultCrossing()
         {

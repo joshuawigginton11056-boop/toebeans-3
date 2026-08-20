@@ -196,7 +196,7 @@ namespace Volcano
 
             // The emitter has to carry the same scale as the lava it emits from, or the shape lands
             // somewhere other than the mesh. Scaling the shape but not the particles is what lets it
-            // do that while every setting above stays in metres: LobbyIsland's Lava Pond is at 4x,
+            // do that while every setting above stays in metres: LavaWorld's Lava Pond is at 4x,
             // and under the default mode a 7 m wisp on it would come out 28 m across.
             main.scalingMode = ParticleSystemScalingMode.Shape;
 

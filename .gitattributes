@@ -207,7 +207,7 @@ LightingData.asset     binary
 # file type that has already been destroyed once, say it outright.
 #
 # Add new TerrainData assets here as they are created.
-/Assets/Terrain/LobbyIsland_Terrain.asset  -text
+/Assets/Terrain/LavaWorld_Terrain.asset  -text
 
 # Windows batch files must keep CRLF - cmd.exe mis-parses LF-only .cmd
 # files, splitting labels and for-loops in ways that fail without an error.

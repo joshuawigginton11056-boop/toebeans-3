@@ -136,6 +136,94 @@ namespace Barriers.EditorTools
                     "along the ground where the barriers should run.",
                     MessageType.Warning);
             }
+
+            DrawCornerNotes(line);
+        }
+
+        /// <summary>
+        /// What the corner setting is actually doing, which is not obvious from the field: it is
+        /// ignored outright unless the row is laid along the path, and bending gives up the prefab
+        /// link in exchange for the curve.
+        /// </summary>
+        void DrawCornerNotes(BarrierLine line)
+        {
+            if (line.cornerFit == BarrierCornerFit.Rigid) return;
+
+            if (line.facing != BarrierFacing.AlongPath)
+            {
+                EditorGUILayout.HelpBox(
+                    "Corner Fit only applies to a row laid along the path. Set Facing to Along Path, " +
+                    "or these sections stay rigid.",
+                    MessageType.Warning);
+                return;
+            }
+
+            if (line.cornerFit == BarrierCornerFit.Bend)
+            {
+                EditorGUILayout.HelpBox(
+                    "Bent sections are generated meshes, not prefab instances: they keep the " +
+                    "materials and the tint, but later edits to the source prefab reach them only " +
+                    "on the next rebuild, and the meshes are stored in the scene.",
+                    MessageType.None);
+            }
+
+            // Fitting fills the slot, so a spacing that is not the model's length silently
+            // stretches or squashes every section in the run. Worth saying out loud in metres.
+            GameObject prefab = FirstPrefab(line);
+            float natural = prefab != null ? MeasureRunLength(prefab) : 0f;
+            float slot = line.spacingMode == BarrierSpacingMode.Distance ? line.spacing : 0f;
+
+            if (natural > 0.01f && slot > 0.01f && Mathf.Abs(slot - natural) > natural * 0.05f)
+            {
+                EditorGUILayout.HelpBox(
+                    string.Format(
+                        "Spacing is {0:0.##} m but {1} is {2:0.##} m long, so every section is " +
+                        "stretched to {3:0.#}% of its length. Press Fit Spacing To Prefab unless " +
+                        "that is what you want.",
+                        slot, prefab.name, natural, slot / natural * 100f),
+                    MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.HelpBox(
+                "Each section is stretched to fill the gap ahead of it, so Spacing is the section " +
+                "length at scale 1. Press Fit Spacing To Prefab to take it off the model, and leave " +
+                "Spacing Jitter at 0 unless you want the sections stretched unevenly.\n\n" +
+                "To resize the run, set Scale Min and Scale Max — the slot is scaled with the " +
+                "section, so a bigger barrier is longer as well as taller and the joins still meet. " +
+                "Scaling a placed section by hand cannot stay joined, and a rebuild replaces it.",
+                MessageType.None);
+        }
+
+        static GameObject FirstPrefab(BarrierLine line)
+        {
+            for (int i = 0; i < line.prefabs.Count; i++)
+                if (line.prefabs[i] != null && line.prefabs[i].prefab != null) return line.prefabs[i].prefab;
+            return null;
+        }
+
+        /// <summary>The model's own length along the line, before any placement scale.</summary>
+        static float MeasureRunLength(GameObject prefab)
+        {
+            BarrierSectionBender.SectionAxes axes;
+            if (!BarrierSectionSource.Measure(prefab, out axes)) return 0f;
+
+            Vector3 rootScale = prefab.transform.localScale;
+            return axes.Length * Mathf.Abs(axes.Along == 0 ? rootScale.x : rootScale.z);
+        }
+
+        /// <summary>
+        /// The gap that makes sections meet.
+        ///
+        /// A rigid instance is placed already wearing its random scale, so the gap has to include
+        /// it. A fitted one is scaled by the solver, which scales the slot with it — counting the
+        /// scale in here as well would apply it twice, and scaling the run up would gap it.
+        /// </summary>
+        static float SpacingFor(GameObject prefab, BarrierLine line)
+        {
+            float natural = MeasureRunLength(prefab);
+            if (natural <= 0f) return 0f;
+            return line.FitsToPath ? natural : natural * line.SectionScaleAverage;
         }
 
         void DrawActions(BarrierLine line)
@@ -179,35 +267,22 @@ namespace Barriers.EditorTools
         /// </summary>
         void FitSpacingToPrefab(BarrierLine line)
         {
-            GameObject prefab = null;
-            for (int i = 0; i < line.prefabs.Count; i++)
-                if (line.prefabs[i] != null && line.prefabs[i].prefab != null)
-                { prefab = line.prefabs[i].prefab; break; }
-
+            GameObject prefab = FirstPrefab(line);
             if (prefab == null)
             {
                 EditorUtility.DisplayDialog("Barrier Line", "Assign a prefab first.", "OK");
                 return;
             }
 
-            var renderers = prefab.GetComponentsInChildren<Renderer>(true);
-            if (renderers.Length == 0)
+            // Measured the same way the fitted and bent modes measure it, so the spacing this sets
+            // is exactly the slot a section is later made to fill.
+            float scaled = SpacingFor(prefab, line);
+            if (scaled <= 0f)
             {
                 EditorUtility.DisplayDialog("Barrier Line",
                     prefab.name + " has no renderers, so there is nothing to measure.", "OK");
                 return;
             }
-
-            // Bounds are in world space on a prefab asset, which is the prefab's own space here.
-            Bounds b = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
-
-            // A section placed with facing AlongPath runs along its local Z, so that is the span
-            // that has to match the gap. Fall back to X for a model authored sideways.
-            float along = b.size.z;
-            if (along < 0.01f || b.size.x > b.size.z * 1.5f) along = b.size.x;
-
-            float scaled = along * Mathf.Max(0.01f, (line.scaleMin + line.scaleMax) * 0.5f);
             if (scaled < 0.05f)
             {
                 EditorUtility.DisplayDialog("Barrier Line",

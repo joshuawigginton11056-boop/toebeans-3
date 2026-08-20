@@ -17,7 +17,7 @@ namespace CaveTunnel.EditorTools
     /// and no hole is wanted.
     ///
     /// Holes live in the TerrainData asset, not the scene, so the write lands on whichever asset the
-    /// scene's terrain points at - <c>Assets/Terrain/LobbyIsland_Terrain.asset</c> for LobbyIsland -
+    /// scene's terrain points at - <c>Assets/Terrain/LavaWorld_Terrain.asset</c> for LavaWorld -
     /// and survives a scene revert. Use Clear to take them back out.
     /// </summary>
     public static class CaveTerrainHoles

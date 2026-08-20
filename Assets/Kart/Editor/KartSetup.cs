@@ -501,7 +501,7 @@ namespace Toebeans.Karting.EditorTools
             // which lowers real ride height by the static sag — confirmed live at 39-51 mm. That still
             // leaves comfortable flat-ground clearance (170 mm down to roughly 125 mm), so it is not
             // raised for that alone; doing so would lift this box above the visual floor pan it is meant
-            // to stand in for. What it will not survive is a genuine grade break: LobbyIsland's mountain
+            // to stand in for. What it will not survive is a genuine grade break: LavaWorld's mountain
             // has confirmed 25-40° edges over just a few metres (see [[lobbyisland-mountain-unroutable]]),
             // and no clearance margin worth keeping the visual alignment for clears a ledge the wheels
             // have only just started to drop into.
