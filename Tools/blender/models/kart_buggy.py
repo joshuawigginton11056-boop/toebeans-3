@@ -40,7 +40,9 @@ import bpy
 from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import kartworks as kw  # noqa: E402
 import toebeans_blender as tb  # noqa: E402
+from kartworks import mirrored, u, usize  # noqa: E402
 
 BODY_NAME = "KartBuggy_Body"
 WHEEL_FRONT_NAME = "KartBuggy_WheelFront"
@@ -48,59 +50,49 @@ WHEEL_REAR_NAME = "KartBuggy_WheelRear"
 STEERING_WHEEL_NAME = "KartBuggy_SteeringWheel"
 
 # ---------------------------------------------------------------------------------------
-# The hard numbers, mirrored from KartDimensions.Default.
+# The hard numbers.
 #
-# These are duplicated across the language boundary, so they are also asserted against the
-# C# file at build time by `check_against_blueprint` below. A buggy whose arches are cut
-# for a wheel the physics no longer places is exactly the kind of drift that survives code
-# review and shows up as a tyre through a fender.
+# These used to be written out here, mirrored by hand from KartDimensions.Default. They
+# live in kartworks.py now and are re-exported below, because every kart style is cut for
+# the same wheels and nine copies of one table is the drift the pipeline README warns
+# about. kartworks asserts them against the C# at build time, for all styles at once.
+#
+# Re-exported rather than referenced as `kw.X` throughout so the geometry below still reads
+# against the C#, and so preview_kart.py can keep reading a style module's own dimensions.
 # ---------------------------------------------------------------------------------------
 
-FRONT_AXLE_Z = 0.80
-REAR_AXLE_Z = -0.85
-FRONT_TRACK = 1.24
-REAR_TRACK = 1.34
-FRONT_WHEEL_RADIUS = 0.26
-REAR_WHEEL_RADIUS = 0.30
-FRONT_WHEEL_WIDTH = 0.20
-REAR_WHEEL_WIDTH = 0.28
+FRONT_AXLE_Z = kw.FRONT_AXLE_Z
+REAR_AXLE_Z = kw.REAR_AXLE_Z
+FRONT_TRACK = kw.FRONT_TRACK
+REAR_TRACK = kw.REAR_TRACK
+FRONT_WHEEL_RADIUS = kw.FRONT_WHEEL_RADIUS
+REAR_WHEEL_RADIUS = kw.REAR_WHEEL_RADIUS
+FRONT_WHEEL_WIDTH = kw.FRONT_WHEEL_WIDTH
+REAR_WHEEL_WIDTH = kw.REAR_WHEEL_WIDTH
 
-# Suspension travel, mirrored from KartController.suspensionDistance and asserted against it
-# below. The arches are cut to clear a wheel across its whole travel rather than where it
-# happens to sit parked, so this number is as load-bearing here as the wheel radii are.
-SUSPENSION_TRAVEL = 0.28
+SUSPENSION_TRAVEL = kw.SUSPENSION_TRAVEL
+ARCH_GAP = kw.ARCH_GAP
 
-# Daylight between tyre and arch at the two ends of the travel. Small, because the arch is
-# already carrying the whole 280 mm sweep and every millimetre on top is visible as a gap.
-ARCH_GAP = 0.04
+ROLL_HOOP_TOP_Y = kw.ROLL_HOOP_TOP_Y
+ROLL_HOOP_Z = kw.ROLL_HOOP_Z
+STEERING_RACK = kw.STEERING_RACK
+STEERING_HUB = kw.STEERING_HUB
+STEERING_WHEEL_RADIUS = kw.STEERING_WHEEL_RADIUS
+STEERING_RIM_SEGMENTS = kw.STEERING_RIM_SEGMENTS
 
-# Matched to KartBlueprint's own reference points so the two agree about the same kart.
-ROLL_HOOP_TOP_Y = 1.40
-ROLL_HOOP_Z = -0.72
-STEERING_RACK = (0.0, 0.30, 0.30)
-STEERING_HUB = (0.0, 0.76, -0.02)
-STEERING_WHEEL_RADIUS = 0.16
-STEERING_RIM_SEGMENTS = 10
+HEADLAMP_Y = kw.HEADLAMP_Y
+HEADLAMP_Z = kw.HEADLAMP_Z
+HEADLAMP_HALF_SPACING = kw.HEADLAMP_HALF_SPACING
+HEADLAMP_SIZE = kw.HEADLAMP_SIZE
 
-# Lamps, mirrored from KartBlueprint's lamp reference points and asserted against them below.
-# These are shared for the same reason the wheel radii are: KartLights hangs a real Unity Light on
-# the front face of the glass this file builds, so a pod nudged here and nowhere else is a beam
-# coming out of the bodywork - and it only shows up in the dark, which is where nobody is looking.
-HEADLAMP_Y = 0.47
-HEADLAMP_Z = 1.30
-HEADLAMP_HALF_SPACING = 0.15
-HEADLAMP_SIZE = (0.14, 0.10, 0.06)
+ROOF_POD_Y = kw.ROOF_POD_Y
+ROOF_POD_Z = kw.ROOF_POD_Z
+ROOF_POD_INNER_X = kw.ROOF_POD_INNER_X
+ROOF_POD_OUTER_X = kw.ROOF_POD_OUTER_X
+ROOF_POD_SIZE = kw.ROOF_POD_SIZE
 
-ROOF_POD_Y = 1.33
-ROOF_POD_Z = 0.22
-ROOF_POD_INNER_X = 0.16
-ROOF_POD_OUTER_X = 0.34
-ROOF_POD_SIZE = (0.12, 0.10, 0.09)
-
-# The glass is its own piece with its own material, not a face of the housing. Switching the lights
-# on is a material swap on exactly these faces, so they have to be separable from the metal.
-LENS_THICKNESS = 0.018
-LENS_INSET = 0.022
+LENS_THICKNESS = kw.LENS_THICKNESS
+LENS_INSET = kw.LENS_INSET
 
 # ---------------------------------------------------------------------------------------
 # Frame layout
@@ -156,34 +148,6 @@ PALETTE = [
     # has to survive the Blender preview.
     ("KartLens", (0.62, 0.64, 0.62), 0.20, 0.05),
 ]
-
-
-def u(x, y, z):
-    """A point in Unity kart space (X right, Y up, Z forward) -> Blender space.
-
-    Blender is Z-up and the exporter is set to hand Unity Y-up geometry; measuring the
-    round trip shows Unity +Z arriving from Blender -Y. Authoring through this function
-    rather than converting at the end means every number in this file can be compared
-    directly against the C#, and Tools/blender/verify_axes.py is what keeps it honest.
-    """
-    return Vector((x, -z, y))
-
-
-def usize(x, y, z):
-    """A full size in Unity kart space -> Blender space.
-
-    The same axis swap as `u` minus the sign, because an extent has no direction. Kept
-    separate from `u` precisely so the missing negation is deliberate and visible: run a
-    size through `u` and the box comes out mirrored but identical in the viewport, which
-    is the kind of thing you only notice once a decal is on it.
-    """
-    return Vector((x, z, y))
-
-
-def mirrored(*points):
-    """Yield (side, converted points) for the left and right of the kart."""
-    for side in (-1, 1):
-        yield side, [u(p[0] * side, p[1], p[2]) for p in points]
 
 
 # ---------------------------------------------------------------------------------------
@@ -566,107 +530,24 @@ def build_steering_wheel(name=STEERING_WHEEL_NAME):
 
 # ---------------------------------------------------------------------------------------
 # Cross-language check
+#
+# `check_against_blueprint` and `check_suspension_travel` used to live here, scraping
+# KartBlueprint.cs and KartController.cs for the numbers this file mirrored. They are in
+# kartworks.py now and guard every style at once, which is the point: a wheel radius change
+# should fail nine builds rather than leave eight models cut for a wheel the physics no
+# longer places.
 # ---------------------------------------------------------------------------------------
-
-def check_against_blueprint():
-    """Fail the build if KartDimensions.Default has moved out from under this file.
-
-    A plain text scrape rather than anything clever: it only has to notice that a number
-    changed, and it has to keep working without Unity or a C# toolchain present.
-    """
-    source = os.path.join(tb.REPO_ROOT, "Assets", "Kart", "Scripts", "KartBlueprint.cs")
-    if not os.path.exists(source):
-        print(f"  skip  KartBlueprint.cs not found at {source}")
-        return
-
-    with open(source, "r", encoding="utf-8") as handle:
-        text = handle.read()
-
-    scalars = {
-        "frontAxleZ": FRONT_AXLE_Z, "rearAxleZ": REAR_AXLE_Z,
-        "frontTrack": FRONT_TRACK, "rearTrack": REAR_TRACK,
-        "frontWheelRadius": FRONT_WHEEL_RADIUS, "rearWheelRadius": REAR_WHEEL_RADIUS,
-        "frontWheelWidth": FRONT_WHEEL_WIDTH, "rearWheelWidth": REAR_WHEEL_WIDTH,
-        # The steering wheel is a separate mesh parented onto KartBlueprint's pivot, so
-        # its radius has to agree too - otherwise the driver's hands grip thin air.
-        "RollHoopTopY": ROLL_HOOP_TOP_Y, "RollHoopZ": ROLL_HOOP_Z,
-        "SteeringWheelRadius": STEERING_WHEEL_RADIUS,
-        "SteeringRimSegments": STEERING_RIM_SEGMENTS,
-        # The lamps, for the same reason: KartLights puts a Light on the front of the glass built
-        # here, so the two files have to agree about where the glass is.
-        "HeadlampY": HEADLAMP_Y, "HeadlampZ": HEADLAMP_Z,
-        "HeadlampHalfSpacing": HEADLAMP_HALF_SPACING,
-        "RoofPodY": ROOF_POD_Y, "RoofPodZ": ROOF_POD_Z,
-        "RoofPodInnerX": ROOF_POD_INNER_X, "RoofPodOuterX": ROOF_POD_OUTER_X,
-        "LensThickness": LENS_THICKNESS, "LensInset": LENS_INSET,
-    }
-    vectors = {
-        "SteeringHub": STEERING_HUB, "SteeringRack": STEERING_RACK,
-        "HeadlampSize": HEADLAMP_SIZE, "RoofPodSize": ROOF_POD_SIZE,
-    }
-
-    drifted = []
-    for field, ours in scalars.items():
-        # Terminator is a comma inside KartDimensions' initialiser and a semicolon on the
-        # standalone consts; anchoring on either stops a prefix match on a longer name.
-        match = re.search(rf"\b{field}\s*=\s*(-?[\d.]+)f?\s*[;,]", text)
-        if not match:
-            drifted.append(f"{field}: not found in KartBlueprint.cs")
-        elif abs(float(match.group(1)) - ours) > 1e-6:
-            drifted.append(f"{field}: C# has {match.group(1)}, this file has {ours}")
-
-    for field, ours in vectors.items():
-        match = re.search(rf"\b{field}\s*=\s*new Vector3\(([^)]*)\)", text)
-        if not match:
-            drifted.append(f"{field}: not found in KartBlueprint.cs")
-            continue
-        theirs = [float(part.strip().rstrip("f")) for part in match.group(1).split(",")]
-        if any(abs(a - b) > 1e-6 for a, b in zip(theirs, ours)):
-            drifted.append(f"{field}: C# has {theirs}, this file has {list(ours)}")
-
-    if drifted:
-        raise AssertionError(
-            "kart_buggy.py disagrees with KartBlueprint.cs:\n  - " + "\n  - ".join(drifted))
-    print("  ok    dimensions agree with KartBlueprint.cs")
-
-    check_suspension_travel()
-
-
-def check_suspension_travel():
-    """Fail the build if the arches are cut for a travel the controller no longer uses.
-
-    Lives in KartController rather than KartBlueprint, so it is a second file to scrape -
-    but it belongs to the same class of mistake as the wheel radii. Cut an arch for 200 mm
-    of travel on a kart that has 280 and the tyre comes through the top of the fender, and
-    it does it while driving, which is the hardest place to notice a modelling error.
-    """
-    source = os.path.join(tb.REPO_ROOT, "Assets", "Kart", "Scripts", "KartController.cs")
-    if not os.path.exists(source):
-        print(f"  skip  KartController.cs not found at {source}")
-        return
-
-    with open(source, "r", encoding="utf-8") as handle:
-        text = handle.read()
-
-    match = re.search(r"\bpublic\s+float\s+suspensionDistance\s*=\s*(-?[\d.]+)f?\s*;", text)
-    if not match:
-        print("  skip  suspensionDistance not found in KartController.cs")
-        return
-
-    theirs = float(match.group(1))
-    if abs(theirs - SUSPENSION_TRAVEL) > 1e-6:
-        raise AssertionError(
-            f"kart_buggy.py cuts its arches for {SUSPENSION_TRAVEL} m of suspension travel, "
-            f"but KartController.suspensionDistance is {theirs}. The tyre will come through "
-            f"the fender - update SUSPENSION_TRAVEL and rebuild.")
-    print(f"  ok    arches cut for {SUSPENSION_TRAVEL} m of travel, matching KartController")
 
 
 if __name__ == "__main__":
     # fresh_scene is called here rather than inside the builders so that the builders can
     # also be driven from a live Blender session over MCP, where resetting to factory
     # settings is blocked.
-    check_against_blueprint()
+    kw.check_against_blueprint("kart_buggy.py")
+    kw.write_manifest(
+        "Buggy", PALETTE, nose_lamps=True, roof_bar=True,
+        meshes=[BODY_NAME, WHEEL_FRONT_NAME, WHEEL_REAR_NAME, STEERING_WHEEL_NAME],
+    )
 
     # Budgets sit about a quarter above what the model currently costs. This is the thing
     # the player looks at all race, so it can afford more than a scattered prop - but it

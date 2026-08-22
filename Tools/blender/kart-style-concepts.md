@@ -4,7 +4,25 @@ A shortlist of kart styles to build through the Blender pipeline, one per biome,
 the reasoning behind each. Read `README.md` first — this document assumes the pipeline,
 the origin convention and the material slot contract described there.
 
-Nothing here is built yet. `KartStyle.All` currently holds `Buggy` and `Primitives`.
+**All eight are built.** Each has a script under `models\`, four exported meshes, a
+generated palette manifest and an entry in `KartStyle.All` — see the table in `README.md`
+for which script is which. This document stays as the record of *why* each looks the way
+it does; the build notes that came out of actually making them are in each script's header.
+
+What the build changed about the plan below:
+
+- **Proportion turned out to be available after all, indirectly.** Field marshal fakes the
+  tractor read entirely through fender geometry, and it works — an oversized rear arc and a
+  deliberately mean front shroud are enough to make two wheels 40 mm apart in radius read
+  as very different sizes.
+- **The mine cart's lamp had to move.** It is on the roof-bar point, not the roll hoop,
+  because that is where `KartLights` hangs a real Light. The gameplay payoff the concept
+  wanted only exists at `KartBlueprint`'s own coordinates.
+- **Pit rat's odd wheel is per-axle, not per-corner.** A style names one front mesh and one
+  rear mesh, so the fronts keep a hubcap and the rears do not.
+- **Bone chariot still needs its collision shell.** Nothing in the mesh sticks out past the
+  ribs' envelope, so a convex hull fitted round the body in Unity will not have a rib
+  through it — but that shell is not built.
 
 ## What a style can and cannot change
 

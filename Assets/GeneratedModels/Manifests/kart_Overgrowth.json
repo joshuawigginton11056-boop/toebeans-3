@@ -1,0 +1,103 @@
+{
+  "key": "Overgrowth",
+  "noseLamps": false,
+  "roofBar": false,
+  "meshes": [
+    "KartOvergrowth_Body",
+    "KartOvergrowth_WheelFront",
+    "KartOvergrowth_WheelRear",
+    "KartOvergrowth_SteeringWheel"
+  ],
+  "slots": [
+    {
+      "slot": "KartFrame",
+      "color": [
+        0.72,
+        0.68,
+        0.34
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.3,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartBody",
+      "color": [
+        0.2,
+        0.46,
+        0.16
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.35,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartSeat",
+      "color": [
+        0.62,
+        0.45,
+        0.24
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.15,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRim",
+      "color": [
+        0.3,
+        0.4,
+        0.2
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.2,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRubber",
+      "color": [
+        0.1,
+        0.1,
+        0.09
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.15,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartLens",
+      "color": [
+        0.62,
+        0.64,
+        0.62
+      ],
+      "metallic": 0.2,
+      "smoothness": 0.95,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "key": "Log",
+  "noseLamps": false,
+  "roofBar": false,
+  "meshes": [
+    "KartLog_Body",
+    "KartLog_WheelFront",
+    "KartLog_WheelRear",
+    "KartLog_SteeringWheel"
+  ],
+  "slots": [
+    {
+      "slot": "KartFrame",
+      "color": [
+        0.55,
+        0.48,
+        0.38
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.25,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartBody",
+      "color": [
+        0.66,
+        0.48,
+        0.28
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.2,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartSeat",
+      "color": [
+        0.34,
+        0.24,
+        0.17
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.12,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRim",
+      "color": [
+        0.29,
+        0.42,
+        0.2
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.1,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRubber",
+      "color": [
+        0.27,
+        0.2,
+        0.14
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.08,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartLens",
+      "color": [
+        0.62,
+        0.64,
+        0.62
+      ],
+      "metallic": 0.2,
+      "smoothness": 0.95,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

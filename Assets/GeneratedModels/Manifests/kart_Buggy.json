@@ -1,0 +1,103 @@
+{
+  "key": "Buggy",
+  "noseLamps": true,
+  "roofBar": true,
+  "meshes": [
+    "KartBuggy_Body",
+    "KartBuggy_WheelFront",
+    "KartBuggy_WheelRear",
+    "KartBuggy_SteeringWheel"
+  ],
+  "slots": [
+    {
+      "slot": "KartFrame",
+      "color": [
+        0.22,
+        0.23,
+        0.26
+      ],
+      "metallic": 0.65,
+      "smoothness": 0.45,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartBody",
+      "color": [
+        0.88,
+        0.33,
+        0.09
+      ],
+      "metallic": 0.1,
+      "smoothness": 0.45,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartSeat",
+      "color": [
+        0.13,
+        0.13,
+        0.15
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.3,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRim",
+      "color": [
+        0.72,
+        0.74,
+        0.78
+      ],
+      "metallic": 0.9,
+      "smoothness": 0.7,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRubber",
+      "color": [
+        0.07,
+        0.07,
+        0.08
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.22,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartLens",
+      "color": [
+        0.62,
+        0.64,
+        0.62
+      ],
+      "metallic": 0.2,
+      "smoothness": 0.95,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

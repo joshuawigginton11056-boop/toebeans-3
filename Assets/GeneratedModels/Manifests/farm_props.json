@@ -1,0 +1,433 @@
+{
+  "script": "farm_props",
+  "models": [
+    {
+      "name": "Farm_HayBaleRound",
+      "kind": "prop",
+      "tris": 1244,
+      "dims": [
+        1.6137,
+        1.5655,
+        1.5798
+      ],
+      "materials": [
+        "Farm_Straw"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_HayBaleSquare",
+      "kind": "prop",
+      "tris": 424,
+      "dims": [
+        0.5835,
+        0.97,
+        0.36
+      ],
+      "materials": [
+        "Farm_Straw",
+        "Farm_Dirt"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_HayStack",
+      "kind": "prop",
+      "tris": 1700,
+      "dims": [
+        2.2038,
+        2.2938,
+        1.5087
+      ],
+      "materials": [
+        "Farm_Straw"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_WaterTrough",
+      "kind": "prop",
+      "tris": 868,
+      "dims": [
+        2.14,
+        0.7787,
+        0.64
+      ],
+      "materials": [
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Dirt",
+        "Farm_Water"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_FeedTrough",
+      "kind": "prop",
+      "tris": 708,
+      "dims": [
+        1.7,
+        0.5183,
+        0.4727
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Straw"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_WaterPump",
+      "kind": "prop",
+      "tris": 968,
+      "dims": [
+        0.8273,
+        1.3848,
+        1.16
+      ],
+      "materials": [
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Dirt",
+        "Farm_Water"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_MilkChurn",
+      "kind": "prop",
+      "tris": 880,
+      "dims": [
+        0.54,
+        0.4795,
+        0.84
+      ],
+      "materials": [
+        "Farm_Metal",
+        "Farm_Rust"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Barrel",
+      "kind": "prop",
+      "tris": 996,
+      "dims": [
+        0.6716,
+        0.6716,
+        0.86
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_Rust"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Crate",
+      "kind": "prop",
+      "tris": 1508,
+      "dims": [
+        0.8322,
+        0.6542,
+        0.9605
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Green"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_SackPile",
+      "kind": "prop",
+      "tris": 820,
+      "dims": [
+        0.9286,
+        0.9405,
+        0.534
+      ],
+      "materials": [
+        "Farm_Trim",
+        "Farm_Straw",
+        "Farm_Dirt"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Wheelbarrow",
+      "kind": "prop",
+      "tris": 1404,
+      "dims": [
+        0.6498,
+        1.6108,
+        0.5267
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Dirt",
+        "Farm_Rubber"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_LogPile",
+      "kind": "prop",
+      "tris": 3448,
+      "dims": [
+        1.3424,
+        1.9,
+        0.8106
+      ],
+      "materials": [
+        "Farm_Trim",
+        "Farm_Wood",
+        "Farm_WoodDark"
+      ],
+      "parts": [],
+      "collider": "box",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Scarecrow",
+      "kind": "prop",
+      "tris": 1572,
+      "dims": [
+        1.4646,
+        0.7801,
+        2.091
+      ],
+      "materials": [
+        "Farm_Paint",
+        "Farm_Trim",
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Straw",
+        "Farm_Dirt",
+        "Farm_Dark"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Signpost",
+      "kind": "prop",
+      "tris": 336,
+      "dims": [
+        1.8,
+        0.15,
+        1.9158
+      ],
+      "materials": [
+        "Farm_Paint",
+        "Farm_Trim",
+        "Farm_WoodDark",
+        "Farm_Roof"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "prop",
+      "note": "",
+      "waterline": 0.0
+    }
+  ],
+  "materials": [
+    {
+      "name": "Farm_Dark",
+      "rgb": [
+        0.043,
+        0.039,
+        0.039
+      ],
+      "metallic": 0.0,
+      "roughness": 0.96,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Dirt",
+      "rgb": [
+        0.286,
+        0.224,
+        0.165
+      ],
+      "metallic": 0.0,
+      "roughness": 0.94,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Green",
+      "rgb": [
+        0.267,
+        0.384,
+        0.192
+      ],
+      "metallic": 0.0,
+      "roughness": 0.88,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Metal",
+      "rgb": [
+        0.545,
+        0.569,
+        0.6
+      ],
+      "metallic": 0.65,
+      "roughness": 0.42,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Paint",
+      "rgb": [
+        0.412,
+        0.118,
+        0.098
+      ],
+      "metallic": 0.0,
+      "roughness": 0.86,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Roof",
+      "rgb": [
+        0.224,
+        0.235,
+        0.251
+      ],
+      "metallic": 0.05,
+      "roughness": 0.72,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Rubber",
+      "rgb": [
+        0.078,
+        0.078,
+        0.086
+      ],
+      "metallic": 0.0,
+      "roughness": 0.68,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Rust",
+      "rgb": [
+        0.404,
+        0.208,
+        0.125
+      ],
+      "metallic": 0.25,
+      "roughness": 0.78,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Straw",
+      "rgb": [
+        0.757,
+        0.62,
+        0.286
+      ],
+      "metallic": 0.0,
+      "roughness": 0.9,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Trim",
+      "rgb": [
+        0.842,
+        0.822,
+        0.76
+      ],
+      "metallic": 0.0,
+      "roughness": 0.8,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Water",
+      "rgb": [
+        0.196,
+        0.353,
+        0.408
+      ],
+      "metallic": 0.0,
+      "roughness": 0.18,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Wood",
+      "rgb": [
+        0.353,
+        0.255,
+        0.169
+      ],
+      "metallic": 0.0,
+      "roughness": 0.86,
+      "emissive": false
+    },
+    {
+      "name": "Farm_WoodDark",
+      "rgb": [
+        0.18,
+        0.133,
+        0.102
+      ],
+      "metallic": 0.0,
+      "roughness": 0.82,
+      "emissive": false
+    }
+  ]
+}

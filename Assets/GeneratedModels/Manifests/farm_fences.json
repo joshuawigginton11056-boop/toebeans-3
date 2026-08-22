@@ -1,0 +1,177 @@
+{
+  "script": "farm_fences",
+  "models": [
+    {
+      "name": "Farm_FencePostRail",
+      "kind": "prop",
+      "tris": 172,
+      "dims": [
+        0.174,
+        2.6122,
+        1.3
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "fence",
+      "note": "BarrierLine section; runs down local Z",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_FencePicket",
+      "kind": "prop",
+      "tris": 980,
+      "dims": [
+        0.144,
+        2.012,
+        1.14
+      ],
+      "materials": [
+        "Farm_Trim"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "fence",
+      "note": "BarrierLine section; runs down local Z",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_FenceWire",
+      "kind": "prop",
+      "tris": 260,
+      "dims": [
+        0.1727,
+        3.2205,
+        1.2001
+      ],
+      "materials": [
+        "Farm_WoodDark",
+        "Farm_Metal"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "fence",
+      "note": "BarrierLine section; runs down local Z",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_FenceCorral",
+      "kind": "prop",
+      "tris": 348,
+      "dims": [
+        0.277,
+        2.812,
+        1.605
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Rust"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "fence",
+      "note": "BarrierLine section; runs down local Z",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_FenceGate",
+      "kind": "prop",
+      "tris": 564,
+      "dims": [
+        2.0062,
+        3.424,
+        1.68
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Rust"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "fence",
+      "note": "BarrierLine section; runs down local Z",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_FenceHurdle",
+      "kind": "prop",
+      "tris": 380,
+      "dims": [
+        0.48,
+        1.9,
+        1.05
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark"
+      ],
+      "parts": [],
+      "collider": "none",
+      "tag": "fence",
+      "note": "BarrierLine section; runs down local Z",
+      "waterline": 0.0
+    }
+  ],
+  "materials": [
+    {
+      "name": "Farm_Metal",
+      "rgb": [
+        0.545,
+        0.569,
+        0.6
+      ],
+      "metallic": 0.65,
+      "roughness": 0.42,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Rust",
+      "rgb": [
+        0.404,
+        0.208,
+        0.125
+      ],
+      "metallic": 0.25,
+      "roughness": 0.78,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Trim",
+      "rgb": [
+        0.842,
+        0.822,
+        0.76
+      ],
+      "metallic": 0.0,
+      "roughness": 0.8,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Wood",
+      "rgb": [
+        0.353,
+        0.255,
+        0.169
+      ],
+      "metallic": 0.0,
+      "roughness": 0.86,
+      "emissive": false
+    },
+    {
+      "name": "Farm_WoodDark",
+      "rgb": [
+        0.18,
+        0.133,
+        0.102
+      ],
+      "metallic": 0.0,
+      "roughness": 0.82,
+      "emissive": false
+    }
+  ]
+}

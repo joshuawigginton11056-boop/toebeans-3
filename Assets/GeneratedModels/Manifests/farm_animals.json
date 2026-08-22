@@ -1,0 +1,657 @@
+{
+  "script": "farm_animals",
+  "models": [
+    {
+      "name": "Farm_Cow",
+      "kind": "hierarchy",
+      "tris": 2360,
+      "dims": [
+        0.6023,
+        2.14,
+        1.2272
+      ],
+      "materials": [
+        "Farm_HideAlt",
+        "Farm_Wool",
+        "Farm_Flesh",
+        "Farm_Hoof",
+        "Farm_Eye"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Head",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            -0.7,
+            0.9856
+          ]
+        },
+        {
+          "name": "Jaw",
+          "parent": "Head",
+          "pivot": [
+            -0.0,
+            -0.7,
+            0.9856
+          ]
+        },
+        {
+          "name": "Tail",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            0.68,
+            1.1956
+          ]
+        },
+        {
+          "name": "Ear_L",
+          "parent": "Head",
+          "pivot": [
+            0.13,
+            -0.94,
+            1.0156
+          ]
+        },
+        {
+          "name": "Ear_R",
+          "parent": "Head",
+          "pivot": [
+            -0.13,
+            -0.94,
+            1.0156
+          ]
+        },
+        {
+          "name": "Leg_FL",
+          "parent": "Body",
+          "pivot": [
+            0.21,
+            -0.4,
+            0.5956
+          ]
+        },
+        {
+          "name": "Leg_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.21,
+            -0.4,
+            0.5956
+          ]
+        },
+        {
+          "name": "Leg_BL",
+          "parent": "Body",
+          "pivot": [
+            0.21,
+            0.42,
+            0.5956
+          ]
+        },
+        {
+          "name": "Leg_BR",
+          "parent": "Body",
+          "pivot": [
+            -0.21,
+            0.42,
+            0.5956
+          ]
+        }
+      ],
+      "collider": "capsule",
+      "tag": "animal",
+      "note": "rigid puppet; see FarmAnimal.cs for the part-name contract",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Pig",
+      "kind": "hierarchy",
+      "tris": 1730,
+      "dims": [
+        0.4234,
+        1.2613,
+        0.6357
+      ],
+      "materials": [
+        "Farm_Dirt",
+        "Farm_HideAlt",
+        "Farm_Flesh",
+        "Farm_Hoof",
+        "Farm_Eye"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Head",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            -0.42,
+            0.4
+          ]
+        },
+        {
+          "name": "Jaw",
+          "parent": "Head",
+          "pivot": [
+            -0.0,
+            -0.42,
+            0.4
+          ]
+        },
+        {
+          "name": "Tail",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            0.46,
+            0.49
+          ]
+        },
+        {
+          "name": "Ear_L",
+          "parent": "Head",
+          "pivot": [
+            0.09,
+            -0.47,
+            0.5
+          ]
+        },
+        {
+          "name": "Ear_R",
+          "parent": "Head",
+          "pivot": [
+            -0.09,
+            -0.47,
+            0.5
+          ]
+        },
+        {
+          "name": "Leg_FL",
+          "parent": "Body",
+          "pivot": [
+            0.15,
+            -0.26,
+            0.22
+          ]
+        },
+        {
+          "name": "Leg_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.15,
+            -0.26,
+            0.22
+          ]
+        },
+        {
+          "name": "Leg_BL",
+          "parent": "Body",
+          "pivot": [
+            0.15,
+            0.28,
+            0.22
+          ]
+        },
+        {
+          "name": "Leg_BR",
+          "parent": "Body",
+          "pivot": [
+            -0.15,
+            0.28,
+            0.22
+          ]
+        }
+      ],
+      "collider": "capsule",
+      "tag": "animal",
+      "note": "rigid puppet; see FarmAnimal.cs for the part-name contract",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Sheep",
+      "kind": "hierarchy",
+      "tris": 2160,
+      "dims": [
+        0.523,
+        1.12,
+        0.8023
+      ],
+      "materials": [
+        "Farm_HideAlt",
+        "Farm_Wool",
+        "Farm_Hoof",
+        "Farm_Eye"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Head",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            -0.4,
+            0.5928
+          ]
+        },
+        {
+          "name": "Jaw",
+          "parent": "Head",
+          "pivot": [
+            -0.0,
+            -0.4,
+            0.5928
+          ]
+        },
+        {
+          "name": "Tail",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            0.4,
+            0.6328
+          ]
+        },
+        {
+          "name": "Ear_L",
+          "parent": "Head",
+          "pivot": [
+            0.07,
+            -0.5,
+            0.6428
+          ]
+        },
+        {
+          "name": "Ear_R",
+          "parent": "Head",
+          "pivot": [
+            -0.07,
+            -0.5,
+            0.6428
+          ]
+        },
+        {
+          "name": "Leg_FL",
+          "parent": "Body",
+          "pivot": [
+            0.15,
+            -0.24,
+            0.3928
+          ]
+        },
+        {
+          "name": "Leg_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.15,
+            -0.24,
+            0.3928
+          ]
+        },
+        {
+          "name": "Leg_BL",
+          "parent": "Body",
+          "pivot": [
+            0.15,
+            0.24,
+            0.3928
+          ]
+        },
+        {
+          "name": "Leg_BR",
+          "parent": "Body",
+          "pivot": [
+            -0.15,
+            0.24,
+            0.3928
+          ]
+        }
+      ],
+      "collider": "capsule",
+      "tag": "animal",
+      "note": "rigid puppet; see FarmAnimal.cs for the part-name contract",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Chicken",
+      "kind": "hierarchy",
+      "tris": 1686,
+      "dims": [
+        0.2242,
+        0.5062,
+        0.4921
+      ],
+      "materials": [
+        "Farm_HideAlt",
+        "Farm_Comb",
+        "Farm_Beak",
+        "Farm_Plume",
+        "Farm_Eye"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Head",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            -0.14,
+            0.3061
+          ]
+        },
+        {
+          "name": "Jaw",
+          "parent": "Head",
+          "pivot": [
+            -0.0,
+            -0.14,
+            0.3061
+          ]
+        },
+        {
+          "name": "Tail",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            0.14,
+            0.3161
+          ]
+        },
+        {
+          "name": "Wing_L",
+          "parent": "Body",
+          "pivot": [
+            0.095,
+            -0.06,
+            0.2861
+          ]
+        },
+        {
+          "name": "Wing_R",
+          "parent": "Body",
+          "pivot": [
+            -0.095,
+            -0.06,
+            0.2861
+          ]
+        },
+        {
+          "name": "Leg_FL",
+          "parent": "Body",
+          "pivot": [
+            0.05,
+            -0.01,
+            0.1861
+          ]
+        },
+        {
+          "name": "Leg_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.05,
+            -0.01,
+            0.1861
+          ]
+        }
+      ],
+      "collider": "capsule",
+      "tag": "animal",
+      "note": "rigid puppet; see FarmAnimal.cs for the part-name contract",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Duck",
+      "kind": "hierarchy",
+      "tris": 1194,
+      "dims": [
+        0.2176,
+        0.616,
+        0.4217
+      ],
+      "materials": [
+        "Farm_Hide",
+        "Farm_HideAlt",
+        "Farm_Wool",
+        "Farm_Beak",
+        "Farm_Drake",
+        "Farm_Eye"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Head",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            -0.2,
+            0.245
+          ]
+        },
+        {
+          "name": "Jaw",
+          "parent": "Head",
+          "pivot": [
+            -0.0,
+            -0.252,
+            0.349
+          ]
+        },
+        {
+          "name": "Tail",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            0.2,
+            0.245
+          ]
+        },
+        {
+          "name": "Wing_L",
+          "parent": "Body",
+          "pivot": [
+            0.092,
+            -0.06,
+            0.225
+          ]
+        },
+        {
+          "name": "Wing_R",
+          "parent": "Body",
+          "pivot": [
+            -0.092,
+            -0.06,
+            0.225
+          ]
+        },
+        {
+          "name": "Leg_FL",
+          "parent": "Body",
+          "pivot": [
+            0.045,
+            0.02,
+            0.125
+          ]
+        },
+        {
+          "name": "Leg_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.045,
+            0.02,
+            0.125
+          ]
+        }
+      ],
+      "collider": "capsule",
+      "tag": "animal",
+      "note": "rigid puppet; see FarmAnimal.cs for the part-name contract",
+      "waterline": 0.175
+    }
+  ],
+  "materials": [
+    {
+      "name": "Farm_Beak",
+      "rgb": [
+        0.878,
+        0.612,
+        0.176
+      ],
+      "metallic": 0.0,
+      "roughness": 0.62,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Comb",
+      "rgb": [
+        0.702,
+        0.153,
+        0.129
+      ],
+      "metallic": 0.0,
+      "roughness": 0.8,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Dirt",
+      "rgb": [
+        0.286,
+        0.224,
+        0.165
+      ],
+      "metallic": 0.0,
+      "roughness": 0.94,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Drake",
+      "rgb": [
+        0.145,
+        0.325,
+        0.251
+      ],
+      "metallic": 0.1,
+      "roughness": 0.48,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Eye",
+      "rgb": [
+        0.043,
+        0.043,
+        0.055
+      ],
+      "metallic": 0.0,
+      "roughness": 0.3,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Flesh",
+      "rgb": [
+        0.843,
+        0.596,
+        0.573
+      ],
+      "metallic": 0.0,
+      "roughness": 0.86,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Hide",
+      "rgb": [
+        0.408,
+        0.29,
+        0.204
+      ],
+      "metallic": 0.0,
+      "roughness": 0.92,
+      "emissive": false
+    },
+    {
+      "name": "Farm_HideAlt",
+      "rgb": [
+        0.129,
+        0.118,
+        0.114
+      ],
+      "metallic": 0.0,
+      "roughness": 0.9,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Hoof",
+      "rgb": [
+        0.216,
+        0.196,
+        0.184
+      ],
+      "metallic": 0.0,
+      "roughness": 0.7,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Plume",
+      "rgb": [
+        0.494,
+        0.259,
+        0.125
+      ],
+      "metallic": 0.0,
+      "roughness": 0.88,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Wool",
+      "rgb": [
+        0.855,
+        0.839,
+        0.796
+      ],
+      "metallic": 0.0,
+      "roughness": 0.94,
+      "emissive": false
+    }
+  ]
+}

@@ -91,106 +91,20 @@ PALETTE_BURNT = [
     ("BurntIron", (0.10, 0.09, 0.09), 0.70, 0.60),
     ("BurntInterior", (0.03, 0.02, 0.02), 0.00, 0.96),
 ]
-
-
 # --------------------------------------------------------------------------------------
 # Solids
 #
-# tb.cuboid/slab/tube cover a tube frame. A building wants boxes given as bounds, beams
-# given as a run with a cross-section you control, and prisms for gable ends.
+# These moved into toebeans_blender when the farm pack needed the same four. Kept as
+# module-level names here rather than spelled `tb.box` at every call site, because this
+# file places several hundred parts and the prefix at each of them earns nothing.
 # --------------------------------------------------------------------------------------
 
-def _paint(verts, skin):
-    """Stamp a material slot on every face touching these vertices."""
-    for v in verts:
-        for f in v.link_faces:
-            f.material_index = skin
+box = tb.box            # an axis-aligned box given opposite corners
+beam = tb.beam          # a box whose long axis runs a->b, cross-section w x h
+prism = tb.prism        # a convex polygon extruded into a solid - gable ends, mostly
+moved = tb.moved        # build upright inside the block, then knock it over
+spin = tb.spin          # a rotation about an axis through a pivot, for use with moved
 
-
-def box(bm, lo, hi, skin=0):
-    """An axis-aligned box given opposite corners, in either order."""
-    lo, hi = Vector(lo), Vector(hi)
-    centre = (lo + hi) * 0.5
-    size = Vector((abs(hi.x - lo.x), abs(hi.y - lo.y), abs(hi.z - lo.z)))
-    if min(size) < 1e-5:
-        raise ValueError(f"degenerate box, size {tuple(round(c, 4) for c in size)}")
-    made = bmesh.ops.create_cube(bm, size=1.0, matrix=(
-        Matrix.Translation(centre) @ Matrix.Diagonal(size).to_4x4()))
-    _paint(made["verts"], skin)
-
-
-def beam(bm, a, b, w, h, skin=0, up=(0.0, 0.0, 1.0)):
-    """A box whose long axis runs a->b, `h` measured along `up`, `w` across both.
-
-    Endpoints rather than centre-plus-rotation, for the reason KartBlueprint.Segment
-    gives: when a dimension changes, a frame built from endpoints stays joined up and a
-    frame built from centres quietly comes apart. `up` is stated rather than derived,
-    because a rafter and a wall brace run in different planes and each wants its depth
-    measured in a different direction - guessing that from the run alone twists the brace.
-    """
-    a, b = Vector(a), Vector(b)
-    run = b - a
-    length = run.length
-    if length < 1e-6:
-        raise ValueError(f"beam endpoints coincide at {tuple(round(c, 4) for c in a)}")
-    z_axis = run / length
-
-    up = Vector(up)
-    y_axis = up - z_axis * up.dot(z_axis)
-    if y_axis.length < 1e-4:
-        # `up` is parallel to the run and so says nothing. Any perpendicular will do.
-        alt = Vector((0.0, 0.0, 1.0)) if abs(z_axis.z) < 0.9 else Vector((0.0, 1.0, 0.0))
-        y_axis = alt - z_axis * alt.dot(z_axis)
-    y_axis.normalize()
-    x_axis = y_axis.cross(z_axis)
-
-    basis = Matrix((
-        (x_axis.x, y_axis.x, z_axis.x, 0.0),
-        (x_axis.y, y_axis.y, z_axis.y, 0.0),
-        (x_axis.z, y_axis.z, z_axis.z, 0.0),
-        (0.0, 0.0, 0.0, 1.0),
-    ))
-    basis.translation = (a + b) * 0.5
-    made = bmesh.ops.create_cube(bm, size=1.0, matrix=(
-        basis @ Matrix.Diagonal(Vector((w, h, length))).to_4x4()))
-    _paint(made["verts"], skin)
-
-
-def prism(bm, points, extrude, skin=0):
-    """A convex polygon extruded into a solid. Gable ends, mostly.
-
-    A gable is a triangle, and stacking boxes to fake one leaves a staircase under the
-    rake - exactly the hard-cornered look this model exists to get away from.
-    """
-    verts = [bm.verts.new(Vector(p)) for p in points]
-    bm.faces.new(verts)
-    made = bmesh.ops.extrude_face_region(bm, geom=list(verts[0].link_faces))
-    shifted = [g for g in made["geom"] if isinstance(g, bmesh.types.BMVert)]
-    bmesh.ops.translate(bm, verts=shifted, vec=Vector(extrude))
-    _paint(verts + shifted, skin)
-
-
-@contextmanager
-def moved(bm, matrix):
-    """Everything built inside the block gets `matrix` applied to it afterwards.
-
-    For parts easier to author upright and then knock over: the ruin's door hanging off
-    one hinge, a shutter swung back against the wall. Authoring those in place means
-    writing every endpoint pre-rotated, which is unreadable and worse, unadjustable.
-    """
-    before = set(bm.verts)
-    yield
-    fresh = [v for v in bm.verts if v not in before]
-    if fresh:
-        bmesh.ops.transform(bm, matrix=matrix, verts=fresh)
-
-
-def spin(pivot, axis, degrees):
-    """A rotation of `degrees` about `axis` through `pivot`, for use with `moved`."""
-    pivot = Vector(pivot)
-    return (Matrix.Translation(pivot)
-            @ Matrix.Rotation(math.radians(degrees), 4, Vector(axis))
-            @ Matrix.Translation(-pivot))
 
 
 # --------------------------------------------------------------------------------------
@@ -1062,21 +976,7 @@ def build_cabin(s):
     # The chamfer, applied once to everything. Doing it per part instead would give a
     # rail meeting a post two different corner widths, which is the exact tell that a
     # building was assembled from boxes.
-    bmesh.ops.bevel(
-        bm,
-        geom=list(bm.verts) + list(bm.edges) + list(bm.faces),
-        offset=CHAMFER,
-        offset_type="OFFSET",
-        segments=CHAMFER_SEGMENTS,
-        profile=0.5,
-        affect="EDGES",
-        clamp_overlap=True,
-        loop_slide=True,
-        material=-1,          # bevel faces inherit their neighbour's slot, so the split holds
-    )
-    # Clamped bevels on the thinnest parts can meet in the middle and leave a face with no
-    # area. validate() would reject those, and rightly - Unity ships them as broken normals.
-    bmesh.ops.dissolve_degenerate(bm, dist=1e-5, edges=bm.edges)
+    tb.chamfer(bm, CHAMFER, CHAMFER_SEGMENTS)
 
     obj = tb.mesh_from_bmesh(bm, s.name)
     tb.assign_materials(obj, s.palette)

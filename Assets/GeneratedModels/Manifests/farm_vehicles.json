@@ -1,0 +1,399 @@
+{
+  "script": "farm_vehicles",
+  "models": [
+    {
+      "name": "Farm_Tractor",
+      "kind": "hierarchy",
+      "tris": 8972,
+      "dims": [
+        1.9,
+        3.0725,
+        2.208
+      ],
+      "materials": [
+        "Farm_Paint",
+        "Farm_WoodDark",
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Glass",
+        "Farm_Rubber"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Steering",
+          "parent": "Body",
+          "pivot": [
+            -0.0,
+            -0.3,
+            1.3171
+          ]
+        },
+        {
+          "name": "Wheel_FL",
+          "parent": "Body",
+          "pivot": [
+            0.52,
+            -1.06,
+            0.4171
+          ]
+        },
+        {
+          "name": "Wheel_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.52,
+            -1.06,
+            0.4171
+          ]
+        },
+        {
+          "name": "Wheel_RL",
+          "parent": "Body",
+          "pivot": [
+            0.68,
+            0.66,
+            0.7371
+          ]
+        },
+        {
+          "name": "Wheel_RR",
+          "parent": "Body",
+          "pivot": [
+            -0.68,
+            0.66,
+            0.7371
+          ]
+        }
+      ],
+      "collider": "box",
+      "tag": "vehicle",
+      "note": "wheels spin; Wheel_F* steer; Steering turns about its own hub",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Truck",
+      "kind": "hierarchy",
+      "tris": 7696,
+      "dims": [
+        2.03,
+        3.68,
+        1.7271
+      ],
+      "materials": [
+        "Farm_PaintB",
+        "Farm_Trim",
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Straw",
+        "Farm_Glass",
+        "Farm_Rubber",
+        "Farm_Dark"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Wheel_FL",
+          "parent": "Body",
+          "pivot": [
+            0.78,
+            -1.28,
+            0.3671
+          ]
+        },
+        {
+          "name": "Wheel_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.78,
+            -1.28,
+            0.3671
+          ]
+        },
+        {
+          "name": "Wheel_RL",
+          "parent": "Body",
+          "pivot": [
+            0.78,
+            1.24,
+            0.3671
+          ]
+        },
+        {
+          "name": "Wheel_RR",
+          "parent": "Body",
+          "pivot": [
+            -0.78,
+            1.24,
+            0.3671
+          ]
+        }
+      ],
+      "collider": "box",
+      "tag": "vehicle",
+      "note": "wheels spin; Wheel_F* steer",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_HayWagon",
+      "kind": "hierarchy",
+      "tris": 7000,
+      "dims": [
+        1.9108,
+        4.08,
+        1.8383
+      ],
+      "materials": [
+        "Farm_Wood",
+        "Farm_WoodDark",
+        "Farm_Rust",
+        "Farm_Straw",
+        "Farm_Rubber"
+      ],
+      "parts": [
+        {
+          "name": "Body",
+          "parent": "",
+          "pivot": [
+            -0.0,
+            -0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Wheel_FL",
+          "parent": "Body",
+          "pivot": [
+            0.76,
+            -1.1,
+            0.3
+          ]
+        },
+        {
+          "name": "Wheel_FR",
+          "parent": "Body",
+          "pivot": [
+            -0.76,
+            -1.1,
+            0.3
+          ]
+        },
+        {
+          "name": "Wheel_RL",
+          "parent": "Body",
+          "pivot": [
+            0.76,
+            1.2,
+            0.38
+          ]
+        },
+        {
+          "name": "Wheel_RR",
+          "parent": "Body",
+          "pivot": [
+            -0.76,
+            1.2,
+            0.38
+          ]
+        }
+      ],
+      "collider": "box",
+      "tag": "vehicle",
+      "note": "towable; wheels spin off distance travelled",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Plough",
+      "kind": "prop",
+      "tris": 3084,
+      "dims": [
+        1.4583,
+        2.4961,
+        1.245
+      ],
+      "materials": [
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Dirt",
+        "Farm_Rubber"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "implement",
+      "note": "",
+      "waterline": 0.0
+    },
+    {
+      "name": "Farm_Harrow",
+      "kind": "prop",
+      "tris": 5496,
+      "dims": [
+        2.1,
+        2.3496,
+        0.86
+      ],
+      "materials": [
+        "Farm_Metal",
+        "Farm_Rust",
+        "Farm_Dirt"
+      ],
+      "parts": [],
+      "collider": "mesh",
+      "tag": "implement",
+      "note": "",
+      "waterline": 0.0
+    }
+  ],
+  "materials": [
+    {
+      "name": "Farm_Dark",
+      "rgb": [
+        0.043,
+        0.039,
+        0.039
+      ],
+      "metallic": 0.0,
+      "roughness": 0.96,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Dirt",
+      "rgb": [
+        0.286,
+        0.224,
+        0.165
+      ],
+      "metallic": 0.0,
+      "roughness": 0.94,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Glass",
+      "rgb": [
+        0.596,
+        0.714,
+        0.757
+      ],
+      "metallic": 0.0,
+      "roughness": 0.22,
+      "emissive": true
+    },
+    {
+      "name": "Farm_Metal",
+      "rgb": [
+        0.545,
+        0.569,
+        0.6
+      ],
+      "metallic": 0.65,
+      "roughness": 0.42,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Paint",
+      "rgb": [
+        0.412,
+        0.118,
+        0.098
+      ],
+      "metallic": 0.0,
+      "roughness": 0.86,
+      "emissive": false
+    },
+    {
+      "name": "Farm_PaintB",
+      "rgb": [
+        0.278,
+        0.345,
+        0.325
+      ],
+      "metallic": 0.0,
+      "roughness": 0.84,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Rubber",
+      "rgb": [
+        0.078,
+        0.078,
+        0.086
+      ],
+      "metallic": 0.0,
+      "roughness": 0.68,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Rust",
+      "rgb": [
+        0.404,
+        0.208,
+        0.125
+      ],
+      "metallic": 0.25,
+      "roughness": 0.78,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Straw",
+      "rgb": [
+        0.757,
+        0.62,
+        0.286
+      ],
+      "metallic": 0.0,
+      "roughness": 0.9,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Trim",
+      "rgb": [
+        0.842,
+        0.822,
+        0.76
+      ],
+      "metallic": 0.0,
+      "roughness": 0.8,
+      "emissive": false
+    },
+    {
+      "name": "Farm_Wood",
+      "rgb": [
+        0.353,
+        0.255,
+        0.169
+      ],
+      "metallic": 0.0,
+      "roughness": 0.86,
+      "emissive": false
+    },
+    {
+      "name": "Farm_WoodDark",
+      "rgb": [
+        0.18,
+        0.133,
+        0.102
+      ],
+      "metallic": 0.0,
+      "roughness": 0.82,
+      "emissive": false
+    }
+  ]
+}

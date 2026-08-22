@@ -50,10 +50,38 @@ namespace Toebeans.Karting.EditorTools
         [MenuItem("Tools/Toebeans/Set Up Drivable Kart %#k", false, 10)]
         public static void SetUp() => SetUp(KartStyle.Default);
 
+        // One hand-written entry per style, because [MenuItem] is an attribute and attributes cannot
+        // be generated from a list at runtime. This is the reason KartStyle.All stays hand-written
+        // while the palettes come from Blender manifests: a style needs a menu entry either way, and
+        // a wrong mesh name here fails loudly the moment you click it.
         [MenuItem("Tools/Toebeans/Kart Style/Buggy", false, 30)]
         public static void SetUpBuggy() => SetUp(KartStyle.Buggy);
 
-        [MenuItem("Tools/Toebeans/Kart Style/Primitives (no imported assets)", false, 31)]
+        [MenuItem("Tools/Toebeans/Kart Style/Cinder hauler (lava)", false, 31)]
+        public static void SetUpCinderHauler() => SetUp(KartStyle.CinderHauler);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Overgrowth (jungle)", false, 32)]
+        public static void SetUpOvergrowth() => SetUp(KartStyle.Overgrowth);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Piste basher (snow)", false, 33)]
+        public static void SetUpPisteBasher() => SetUp(KartStyle.PisteBasher);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Mine cart (cave)", false, 34)]
+        public static void SetUpMineCart() => SetUp(KartStyle.MineCart);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Field marshal (farm)", false, 35)]
+        public static void SetUpFieldMarshal() => SetUp(KartStyle.FieldMarshal);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Log racer (woodland)", false, 36)]
+        public static void SetUpLogRacer() => SetUp(KartStyle.LogRacer);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Bone chariot (hell)", false, 37)]
+        public static void SetUpBoneChariot() => SetUp(KartStyle.BoneChariot);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Pit rat (unlock)", false, 38)]
+        public static void SetUpPitRat() => SetUp(KartStyle.PitRat);
+
+        [MenuItem("Tools/Toebeans/Kart Style/Primitives (no imported assets)", false, 49)]
         public static void SetUpPrimitives() => SetUp(KartStyle.Primitives);
 
         [MenuItem("Tools/Toebeans/Kart Style/Rebuild Prefab Only", false, 42)]
@@ -147,7 +175,7 @@ namespace Toebeans.Karting.EditorTools
 
             try
             {
-                Dictionary<KartSkin, Material> materials = BuildMaterials();
+                Dictionary<KartSkin, Material> materials = BuildMaterials(style);
 
                 var body = new GameObject("Body");
                 body.transform.SetParent(root.transform, false);
@@ -326,7 +354,7 @@ namespace Toebeans.Karting.EditorTools
             var headlamps = new List<Light>();
             foreach (KartLamp lamp in KartBlueprint.Lamps())
             {
-                if (lamp.kind != KartLampKind.Headlamp)
+                if (lamp.kind != KartLampKind.Headlamp || !style.noseLamps)
                     continue;
 
                 // On the front face of the glass, not inside the housing: a spot light behind its own
@@ -337,7 +365,12 @@ namespace Toebeans.Karting.EditorTools
 
             var lights = root.AddComponent<KartLights>();
             lights.headlamps = headlamps.ToArray();
-            lights.roofBar = Lamp(holder.transform, "RoofBarLight", KartBlueprint.RoofBarLightCentre);
+            // Only if the bodywork has something to hang it on. The mine cart's single carbide lamp
+            // sits on this exact point and wants it; the piste basher has no roof bar at all, and a
+            // light here would throw a beam out of thin air above the driver's head.
+            lights.roofBar = style.roofBar
+                ? Lamp(holder.transform, "RoofBarLight", KartBlueprint.RoofBarLightCentre)
+                : null;
             lights.lensOff = materials[KartSkin.Lens];
             lights.lensLit = LitLensMaterial();
             lights.lenses = FindLenses(bodyMesh, materials[KartSkin.Lens], style);
@@ -554,21 +587,86 @@ namespace Toebeans.Karting.EditorTools
             return go;
         }
 
-        static Dictionary<KartSkin, Material> BuildMaterials()
+        /// <summary>
+        /// The kart's materials, for one style.
+        ///
+        /// The five bodywork slots plus the lens come from the style when it has a palette, and from
+        /// the shared defaults below when it does not. The driver's three do not: the driver is the
+        /// same person whichever kart they are sitting in, and their suit belongs to them rather than
+        /// to the bodywork they happen to be strapped into.
+        ///
+        /// A style's materials are their own assets, named for the style, because these are project
+        /// assets shared by every kart of that style — writing a colour onto the one global KartBody
+        /// would repaint the entire grid, which is the same trap <see cref="LitLensMaterial"/> is
+        /// split out to avoid.
+        /// </summary>
+        static Dictionary<KartSkin, Material> BuildMaterials(KartStyle style)
         {
-            return new Dictionary<KartSkin, Material>
+            KartStyleManifest.Apply(style);
+
+            var materials = new Dictionary<KartSkin, Material>
             {
-                [KartSkin.Body] = GetOrCreate("KartBody", new Color(0.88f, 0.33f, 0.09f), 0.1f, 0.45f),
-                [KartSkin.Frame] = GetOrCreate("KartFrame", new Color(0.22f, 0.23f, 0.26f), 0.65f, 0.45f),
-                [KartSkin.Rubber] = GetOrCreate("KartRubber", new Color(0.07f, 0.07f, 0.08f), 0f, 0.22f),
-                [KartSkin.Rim] = GetOrCreate("KartRim", new Color(0.72f, 0.74f, 0.78f), 0.9f, 0.7f),
-                [KartSkin.Seat] = GetOrCreate("KartSeat", new Color(0.13f, 0.13f, 0.15f), 0f, 0.3f),
                 [KartSkin.Suit] = GetOrCreate("DriverSuit", new Color(0.11f, 0.27f, 0.60f), 0f, 0.35f),
                 [KartSkin.Helmet] = GetOrCreate("DriverHelmet", new Color(0.93f, 0.93f, 0.95f), 0.1f, 0.8f),
                 [KartSkin.Visor] = GetOrCreate("DriverVisor", new Color(0.05f, 0.06f, 0.09f), 0.5f, 0.95f),
+            };
+
+            foreach (KeyValuePair<KartSkin, KartSkinColour> slot in DefaultBodywork)
+            {
+                KartSkin skin = slot.Key;
+                KartSkinColour look = slot.Value;
+                string name = DefaultBodyworkNames[skin];
+
+                if (style?.palette != null && style.palette.TryGetValue(skin, out KartSkinColour own))
+                {
+                    look = own;
+                    name = $"Kart{style.key}_{name}";
+                }
+
+                materials[skin] = GetOrCreate(name, look.color, look.metallic, look.smoothness,
+                    look.emission);
+            }
+
+            return materials;
+        }
+
+        /// <summary>
+        /// The buggy's palette, which doubles as the fallback for any style whose Blender manifest has
+        /// not been built yet. Kept here rather than in a manifest so that a checkout with no
+        /// generated assets in it still produces a kart that looks like something.
+        /// </summary>
+        static readonly Dictionary<KartSkin, KartSkinColour> DefaultBodywork =
+            new Dictionary<KartSkin, KartSkinColour>
+            {
+                [KartSkin.Body] = Look(0.88f, 0.33f, 0.09f, 0.1f, 0.45f),
+                [KartSkin.Frame] = Look(0.22f, 0.23f, 0.26f, 0.65f, 0.45f),
+                [KartSkin.Rubber] = Look(0.07f, 0.07f, 0.08f, 0f, 0.22f),
+                [KartSkin.Rim] = Look(0.72f, 0.74f, 0.78f, 0.9f, 0.7f),
+                [KartSkin.Seat] = Look(0.13f, 0.13f, 0.15f, 0f, 0.3f),
                 // Cold glass, which is what a headlamp looks like switched off — pale and glossy, not
                 // white. KartLights swaps this submesh for KartLensLit when the lamps come on.
-                [KartSkin.Lens] = GetOrCreate("KartLens", new Color(0.62f, 0.64f, 0.62f), 0.2f, 0.95f),
+                [KartSkin.Lens] = Look(0.62f, 0.64f, 0.62f, 0.2f, 0.95f),
+            };
+
+        static readonly Dictionary<KartSkin, string> DefaultBodyworkNames =
+            new Dictionary<KartSkin, string>
+            {
+                [KartSkin.Body] = "KartBody",
+                [KartSkin.Frame] = "KartFrame",
+                [KartSkin.Rubber] = "KartRubber",
+                [KartSkin.Rim] = "KartRim",
+                [KartSkin.Seat] = "KartSeat",
+                [KartSkin.Lens] = "KartLens",
+            };
+
+        static KartSkinColour Look(float r, float g, float b, float metallic, float smoothness)
+        {
+            return new KartSkinColour
+            {
+                color = new Color(r, g, b),
+                metallic = metallic,
+                smoothness = smoothness,
+                emission = Color.black,
             };
         }
 

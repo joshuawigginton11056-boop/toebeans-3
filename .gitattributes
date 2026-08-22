@@ -210,6 +210,18 @@ LightingData.asset     binary
 /Assets/Terrain/LavaWorld_Terrain.asset  -text
 /Assets/Terrain/FarmWorld_Terrain.asset  -text
 
+# The loose terrain assets at the Assets root - the ones the incident above was about.
+#
+# These are the worst case for auto-detection, and worse than the note above implies:
+# they are binary, but carry no NUL byte in the first 8000 bytes, so git's heuristic
+# classifies them as TEXT. With core.autocrlf=true that means CR bytes get stripped on
+# checkin. "New Terrain 2.asset" is binary from its first byte and git calls it text -
+# checked 2026-08-21, which is why these are declared rather than left to the heuristic.
+"/Assets/New Terrain.asset"              -text
+"/Assets/New Terrain 1.asset"            -text
+"/Assets/New Terrain 2.asset"            -text
+"/Assets/New Terrain 2 Restored.asset"   -text
+
 # Windows batch files must keep CRLF - cmd.exe mis-parses LF-only .cmd
 # files, splitting labels and for-loops in ways that fail without an error.
 *.cmd                   text eol=crlf

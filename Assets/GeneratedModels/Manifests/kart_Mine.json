@@ -1,0 +1,103 @@
+{
+  "key": "Mine",
+  "noseLamps": false,
+  "roofBar": true,
+  "meshes": [
+    "KartMine_Body",
+    "KartMine_WheelFront",
+    "KartMine_WheelRear",
+    "KartMine_SteeringWheel"
+  ],
+  "slots": [
+    {
+      "slot": "KartFrame",
+      "color": [
+        0.21,
+        0.22,
+        0.25
+      ],
+      "metallic": 0.35,
+      "smoothness": 0.4,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartBody",
+      "color": [
+        0.47,
+        0.51,
+        0.57
+      ],
+      "metallic": 0.3,
+      "smoothness": 0.45,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartSeat",
+      "color": [
+        0.42,
+        0.28,
+        0.16
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.2,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRim",
+      "color": [
+        0.63,
+        0.62,
+        0.57
+      ],
+      "metallic": 0.4,
+      "smoothness": 0.55,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartRubber",
+      "color": [
+        0.1,
+        0.1,
+        0.11
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.15,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "slot": "KartLens",
+      "color": [
+        0.62,
+        0.64,
+        0.62
+      ],
+      "metallic": 0.2,
+      "smoothness": 0.95,
+      "emission": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}
