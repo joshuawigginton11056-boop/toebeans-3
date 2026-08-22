@@ -194,6 +194,95 @@ namespace LowPolyTerrain
             return pixels;
         }
 
+        /// <summary>
+        /// An equirectangular daytime sky: a graded blue dome, threshold cumulus, and a sun disc
+        /// with a bloom around it.
+        ///
+        /// <b>The sun is painted where the directional light actually points, and getting there
+        /// needs the longitude run backwards.</b> Skybox/Panoramic samples a latlong map as
+        /// <c>u = 0.5 - atan2(z, x) / 2pi</c>, not the obvious <c>u = atan2(z, x) / 2pi</c>. The
+        /// difference between those two is a MIRROR, not an offset, so it cannot be corrected with
+        /// the material's _Rotation however carefully it is tuned - painting in the shader's own
+        /// convention here is the only fix. Get it wrong and the sun renders on the opposite side
+        /// of the sky from the light, which looks exactly like a broken skybox.
+        ///
+        /// Azimuth is measured from +X turning toward +Z, matching <c>atan2(z, x)</c>. That is NOT
+        /// a Unity yaw - see FarmWorldSetup.SunAzimuth for the conversion.
+        /// </summary>
+        public static Color[] DaySky(
+            int width, int height, int seed,
+            Color zenith, Color horizon, Color sunColor,
+            float sunAltitudeDegrees, float sunAzimuthDegrees,
+            float cloudCover, float cloudSharpness)
+        {
+            var pixels = new Color[width * height];
+
+            Vector3 sun = Direction(
+                sunAltitudeDegrees * Mathf.Deg2Rad,
+                sunAzimuthDegrees * Mathf.Deg2Rad);
+
+            for (int y = 0; y < height; y++)
+            {
+                float lat = ((float)y / (height - 1) - 0.5f) * Mathf.PI;
+                float up = Mathf.Sin(lat);
+
+                // Biased toward the horizon colour: a linear ramp puts mid-blue at 45 degrees,
+                // which is far higher than a real sky turns over and reads as a painted dome.
+                float t = Mathf.Clamp01(Mathf.Pow(Mathf.Clamp01(up), 0.55f));
+                Color bg = Color.Lerp(horizon, zenith, t);
+
+                for (int x = 0; x < width; x++)
+                {
+                    float lon = (0.5f - (float)x / width) * Mathf.PI * 2f;
+                    Vector3 dir = Direction(lat, lon);
+
+                    Color c = bg;
+
+                    if (cloudCover > 0f && up > -0.05f)
+                    {
+                        // Threshold the noise so there is clear sky between clouds instead of a
+                        // uniform haze, then square the edge up with the sharpness.
+                        float n = TilingNoise((float)x / width * 2f, (float)y / height * 2f, 6f, seed + 1777);
+                        float cut = 1f - cloudCover;
+                        float amount = Mathf.Clamp01((n - cut) / Mathf.Max(1e-3f, 1f - cut));
+                        amount = Mathf.Pow(amount, Mathf.Max(0.1f, cloudSharpness) * 0.5f);
+
+                        // Fade them out toward the horizon, where a flat noise field would tile
+                        // into visible stripes as the projection squeezes it.
+                        amount *= Mathf.Clamp01(up * 5f);
+
+                        if (amount > 0f)
+                        {
+                            // Lit on top, shaded underneath, so a cloud reads as a solid rather
+                            // than as a white smear.
+                            float lit = Mathf.Clamp01(0.55f + Vector3.Dot(dir, sun) * 0.45f);
+                            Color cloud = Color.Lerp(
+                                new Color(0.62f, 0.65f, 0.72f), Color.white, lit);
+                            c = Color.Lerp(c, cloud, amount * 0.92f);
+                        }
+                    }
+
+                    float angle = Vector3.Angle(dir, sun);
+
+                    // Bloom first, then the disc on top of it.
+                    c += sunColor * (Mathf.Exp(-angle / 16f) * 0.55f);
+                    c += sunColor * (1f - SmoothStep(1.6f, 2.6f, angle)) * 1.4f;
+
+                    c.a = 1f;
+                    pixels[y * width + x] = c;
+                }
+            }
+
+            return pixels;
+        }
+
+        static float SmoothStep(float edge0, float edge1, float v)
+        {
+            if (edge1 - edge0 < 1e-6f) return v < edge0 ? 0f : 1f;
+            float t = Mathf.Clamp01((v - edge0) / (edge1 - edge0));
+            return t * t * (3f - 2f * t);
+        }
+
         static Vector3 Direction(float lat, float lon)
         {
             float cl = Mathf.Cos(lat);

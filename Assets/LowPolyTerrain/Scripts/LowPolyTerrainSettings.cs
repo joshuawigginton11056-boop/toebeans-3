@@ -50,6 +50,70 @@ namespace LowPolyTerrain
                  "and leaving the rolls as isolated rises. 0 leaves the noise as it comes.")]
         [Range(0f, 1f)] public float panFlatten = 0.35f;
 
+        [Header("Hills and valley")]
+        [Tooltip("Height of the hill country above the floor pan, in metres. 0 leaves the pan flat " +
+                 "and the world is a bowl with a wall round it.\n\n" +
+                 "This is a separate landform from Pan Relief, not a bigger version of it. Pan " +
+                 "relief rolls the whole floor; hills stand up out of it as their own shapes and " +
+                 "are held back from the valley, so there is somewhere flat left to build on.")]
+        [Range(0f, 120f)] public float hillHeight = 0f;
+
+        [Tooltip("Distance between one hill and the next, in metres.")]
+        [Range(40f, 400f)] public float hillWavelength = 170f;
+
+        [Tooltip("Layers of detail in the hills. Each is half the size and half the height of the " +
+                 "one before.")]
+        [Range(1, 5)] public int hillOctaves = 3;
+
+        [Tooltip("How much of the map the hills claim, before the valley is cut out of them. Low " +
+                 "values leave isolated knolls in open ground; high values give continuous hill " +
+                 "country with the valley as the only way through.")]
+        [Range(0f, 1f)] public float hillCoverage = 0.55f;
+
+        [Tooltip("Width of the flat valley floor, in metres. This is the buildable ground - the " +
+                 "hills are held off it entirely. 0 disables the valley and lets hills run over the " +
+                 "whole map.")]
+        [Range(0f, 400f)] public float valleyWidth = 0f;
+
+        [Tooltip("Distance over which the hills climb away from the valley floor, in metres.\n\n" +
+                 "This is the driveability knob, not Hill Height. The steepest the flanks can get " +
+                 "is roughly atan(hillHeight / valleyBlend), so a 45 m hill over a 60 m blend is a " +
+                 "37 degree wall no kart will climb, and the same hill over 130 m is a 19 degree " +
+                 "slope it can.")]
+        [Range(10f, 300f)] public float valleyBlend = 110f;
+
+        [Tooltip("Direction the valley runs, in degrees, measured from +X turning toward +Z.")]
+        [Range(0f, 180f)] public float valleyBearingDegrees = 35f;
+
+        [Tooltip("Shifts the valley off the centre of the map, in metres, at right angles to its " +
+                 "bearing. Positive moves it toward +Z.")]
+        [Range(-200f, 200f)] public float valleyOffset = 0f;
+
+        [Tooltip("How far the valley wanders off a straight line, in metres. Without it the flanks " +
+                 "are two parallel walls and the valley reads as a trench rather than as ground.")]
+        [Range(0f, 120f)] public float valleyWander = 0f;
+
+        [Header("Pond basin")]
+        [Tooltip("Radius of a basin scooped out of the floor, in metres. 0 disables it.\n\n" +
+                 "The basin is carved last, after the hills and the wall, so it always wins. Keep " +
+                 "it inside the playable area - centred under the wall it will cut a notch out of " +
+                 "the mountain instead of a pond out of the field.")]
+        [Range(0f, 200f)] public float pondRadius = 0f;
+
+        [Tooltip("How far the basin floor sits below the surrounding ground, in metres. Watch this " +
+                 "against Pan Height: there is nothing below terrain zero to carve into, so a basin " +
+                 "deeper than the floor it starts from comes out clipped flat.")]
+        [Range(0f, 60f)] public float pondDepth = 10f;
+
+        [Tooltip("Where the basin sits, as a fraction of the map on each axis. (0,0) is the corner " +
+                 "at terrain-local origin, (1,1) the opposite one.")]
+        public Vector2 pondCenter = new Vector2(0.5f, 0.5f);
+
+        [Tooltip("Fraction of the radius that is flat bottom rather than sloping bank. A pond needs " +
+                 "a flat floor for the water plane to sit on without the surface cutting into the " +
+                 "bank at one side and hovering at the other.")]
+        [Range(0f, 0.9f)] public float pondFloorFlat = 0.35f;
+
         [Header("Mountain wall")]
         [Tooltip("Build the perimeter wall. Off leaves the pan alone, which is useful for judging " +
                  "the ground on its own.")]

@@ -14,6 +14,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/LavaWorld.unity
     guid: 9e8527626ba47af4f8d64beaa5ec122d
+  - enabled: 1
+    path: Assets/Scenes/FarmWorld.unity
+    guid: 94e1f5567fb89b84398d25b6d6259c2e
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

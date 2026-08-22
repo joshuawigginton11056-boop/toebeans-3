@@ -174,8 +174,13 @@ namespace LowPolyTerrain
         {
             float h = PanHeight(s, x, z);
 
+            h += HillHeight(s, x, z, sizeX, sizeZ);
+
             if (s.buildWall)
                 h += WallHeight(s, x, z, sizeX, sizeZ);
+
+            // Carved last, so it wins against whatever it lands on. Everything above only ever adds.
+            h -= PondDepth(s, x, z, sizeX, sizeZ);
 
             if (protectedAreas != null)
             {
@@ -209,6 +214,74 @@ namespace LowPolyTerrain
             }
 
             return s.panHeight + n * s.panRelief * 0.5f;
+        }
+
+        /// <summary>
+        /// Hill country standing up out of the pan, held off the valley floor.
+        ///
+        /// The noise is thresholded rather than used raw. Raw fbm gives a surface that is wavy
+        /// everywhere, which reads as one lumpy field however tall it is; cutting everything below
+        /// a floor to zero and remapping what is left leaves genuine flat ground between genuine
+        /// hills, which is what makes them read as landforms.
+        /// </summary>
+        static float HillHeight(LowPolyTerrainSettings s, float x, float z, float sizeX, float sizeZ)
+        {
+            if (s.hillHeight <= 0f) return 0f;
+
+            float wl = Mathf.Max(1f, s.hillWavelength);
+            float n = TerrainNoise.Fbm(x / wl + 53.1f, z / wl - 71.4f, s.seed + 5171, s.hillOctaves);
+
+            // Coverage sets where the ground stops being flat. High coverage drops the floor, so
+            // more of the noise survives and the hills join up.
+            float floor = 1f - Mathf.Clamp01(s.hillCoverage);
+            if (n <= floor) return 0f;
+
+            float t = (n - floor) / Mathf.Max(1e-4f, 1f - floor);
+            t = t * t * (3f - 2f * t);
+
+            return s.hillHeight * t * ValleyMask(s, x, z, sizeX, sizeZ);
+        }
+
+        /// <summary>
+        /// 0 on the valley floor, 1 clear of it. Multiplying the hills by this is what keeps the
+        /// valley flat - the hills are never generated there rather than being flattened afterwards,
+        /// so there is no seam where a hill was cut off.
+        /// </summary>
+        static float ValleyMask(LowPolyTerrainSettings s, float x, float z, float sizeX, float sizeZ)
+        {
+            if (s.valleyWidth <= 0f) return 1f;
+
+            float ang = s.valleyBearingDegrees * Mathf.Deg2Rad;
+            float dx = x - sizeX * 0.5f;
+            float dz = z - sizeZ * 0.5f;
+
+            // Distance to the valley axis, measured along its perpendicular.
+            float d = dx * -Mathf.Sin(ang) + dz * Mathf.Cos(ang) - s.valleyOffset;
+
+            if (s.valleyWander > 0f)
+            {
+                float ww = Mathf.Max(1f, s.valleyWidth * 1.6f);
+                d += (TerrainNoise.Fbm(x / ww - 17.9f, z / ww + 63.2f, s.seed + 8419, 2) * 2f - 1f)
+                     * s.valleyWander;
+            }
+
+            float half = s.valleyWidth * 0.5f;
+            return SmoothStep(half, half + Mathf.Max(1f, s.valleyBlend), Mathf.Abs(d));
+        }
+
+        /// <summary>A flat-bottomed basin scooped out of whatever the ground was.</summary>
+        static float PondDepth(LowPolyTerrainSettings s, float x, float z, float sizeX, float sizeZ)
+        {
+            if (s.pondRadius <= 0f || s.pondDepth <= 0f) return 0f;
+
+            float cx = s.pondCenter.x * sizeX;
+            float cz = s.pondCenter.y * sizeZ;
+            float dx = x - cx, dz = z - cz;
+            float d = Mathf.Sqrt(dx * dx + dz * dz);
+            if (d >= s.pondRadius) return 0f;
+
+            float flat = s.pondRadius * Mathf.Clamp01(s.pondFloorFlat);
+            return s.pondDepth * (1f - SmoothStep(flat, s.pondRadius, d));
         }
 
         static float WallHeight(LowPolyTerrainSettings s, float x, float z, float sizeX, float sizeZ)

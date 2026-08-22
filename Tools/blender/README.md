@@ -35,9 +35,34 @@ To look at a prop without opening Blender:
 & $env:BLENDER_PATH --background --factory-startup --python .\Tools\blender\preview.py -- VolcanicRock_A
 ```
 
-Writes `Tools\blender\previews\<name>.png`: an orthographic three-quarter view with a row
-of one-metre cubes beside the prop. Orthographic on purpose — under perspective the
-reference cubes render at a size that depends on depth, which defeats the point of them.
+Writes `Tools\blender\previews\<name>.png`: an orthographic three-quarter view on a
+one-metre floor grid, with a single one-metre cube beside the prop for height.
+Orthographic on purpose — under perspective the reference geometry renders at a size that
+depends on depth, which defeats the point of it.
+
+A second argument turns the camera: `front`, `back`, `left`, `right`, or degrees. A prop
+with a door on one side and a chute on the other cannot be judged from one fixed corner.
+
+```powershell
+& $env:BLENDER_PATH --background --factory-startup --python .\Tools\blender\preview.py -- Farm_Barn back
+```
+
+It used to draw a row of three one-metre cubes instead of the grid. That was fine for a
+boulder and useless for a duck: at a framing tight enough to see a 0.4 m prop, a
+one-metre cube fills half the picture and stands in front of the thing being judged. A
+floor grid cannot occlude anything and reads at any prop size.
+
+To compare a whole pack rather than one prop:
+
+```powershell
+& $env:BLENDER_PATH --background --factory-startup --python .\Tools\blender\contact_sheet.py -- farm_props
+```
+
+`preview.py` answers "is this prop right". `contact_sheet.py` answers the question that
+only appears once a pack exists: **do these look like they came from the same place?** A
+palette drifts one prop at a time, and the barn's timber being a different brown from the
+cart's timber is obvious on a contact sheet and essentially undetectable in a row of
+individual renders.
 
 A kart style ships as three FBX files rather than one, so it has its own previewer that
 assembles them:
@@ -136,11 +161,114 @@ shingle courses survived and how much of each gable is left; everything else - e
 rafters, the burnt bay, the door off one hinge, the debris around the foot - follows from
 it. Its bounding box is wider than the house, because the debris is part of the prop.
 
+## The farm pack
+
+`models\farm_*.py` build thirty-six models — buildings, fencing, yard clutter, vehicles,
+implements and livestock — sharing one module, `farmyard.py`. Read `Assets\Farm\README.md`
+for what they are and how to lay a track through them; this section is about what the
+pipeline gained to make them.
+
+**One palette, per-prop slots.** `farmyard.PALETTE` is twenty-five colours for the whole
+pack, indexed by `SKIN_*` constants. A prop that declared all twenty-five would arrive in
+Unity with twenty-five submeshes, most empty, and an empty submesh is a renderer material
+entry that costs a draw call for nothing — so `finish`/`finish_parts` compacts each mesh
+down to the colours it actually uses, while the source still reads `SKIN_RUST` everywhere.
+That is also why the livestock colours live in the same list as the buildings: one list
+means one set of Unity materials, so a cow's hoof is the same colour as a horse's.
+
+**A build manifest instead of a copied table.** `BarrierAssetSetup.cs` carries a
+hand-written copy of the palette its Blender script produces, under a comment saying the
+two have to match — and nothing checks that they do. At five times the size that is a
+guarantee of drift, so each farm script writes what it built into
+`Assets\GeneratedModels\Manifests\<script>.json`: names, sizes, palettes, part hierarchies
+and how each prop should collide. `FarmAssetSetup.cs` reads that and has no list of model
+names in it at all. **Adding a prop needs no C# change.**
+
+One manifest per script rather than one per pack, because each script runs in its own
+headless Blender and two of them writing the same file is a race the runner would lose.
+
+## Props with moving parts
+
+A prop is one mesh. A tractor, a windpump and a cow are not. `toebeans_blender.Part` and
+`build_hierarchy` are for those: each part is authored *where it belongs in the finished
+prop* and given the joint it turns about, which becomes its object origin. A shoulder
+written at `(0.21, 0.40, 0.68)` is the point the leg swings around in Unity with no offset
+to remember.
+
+This is a different answer from the kart's, and the difference is worth stating. A kart
+exports a file per part because the runtime places each part itself from dimensions it
+already owns. A cow's leg is not like that — it only means anything in the arrangement it
+was authored in, and a file per leg would leave Unity reassembling a cow from eight FBXs
+and a table of offsets. So an animal is one file with its parts parented.
+
+**The hierarchy can only be one level deep in the FBX, and that was measured.** Bake Space
+Transform is what puts the geometry in the Y-up frame Unity wants, and the Blender manual
+notes it is unsupported for parented objects. At one level it is in fact fine —
+`verify_axes.py` asserts it, and the child comes back unrotated and exactly where it was
+authored. At two levels it is not: a windpump exported as `Tower > Head > Rotor` came back
+with the rotor eight metres out and rotated 90°, because the axis conversion was baked
+into the root and the grandchild but not into the object between them.
+
+So `build_hierarchy` exports everything as a direct child of the root and puts the
+intended rig in the manifest instead. `FarmAssetSetup.RebuildRig` re-parents in Unity with
+`worldPositionStays`, and because every part's origin is already its joint in world space,
+every joint lands exactly where Blender put it.
+
+`drop_to_ground=True` settles an assembly onto Z=0 after chamfering. Reach for it when a
+prop stands on something round — a wheel's lowest point is a chamfered facet corner, an
+output of the bevel rather than a number anybody can write down. Leave it off for anything
+on a flat foot, where the base check earns its keep: it is what caught the windpump's
+battered legs poking five millimetres through the ground.
+
 ## Kart styles
 
 A prop is one mesh. A kart is not, and cannot be: the wheels steer and spin, so they have
-to be their own meshes with their own origins. `models\kart_buggy.py` is the worked
-example, and it exports three files:
+to be their own meshes with their own origins.
+
+There are nine styles, one script each under `models\`, and they all share `kartworks.py`
+the way the farm pack shares `farmyard.py`:
+
+| Script | Style | Biome | The hook |
+|---|---|---|---|
+| `kart_buggy.py` | Buggy | universal | tube space frame, long-travel coil-overs |
+| `cinder_hauler.py` | Cinder hauler | lava | horns and twin stacks, glowing fissures |
+| `overgrowth.py` | Overgrowth | jungle | bamboo culms, one enormous leaf wing |
+| `piste_basher.py` | Piste basher | snow | plow blade, sled runners, studded chevrons |
+| `mine_cart.py` | Mine cart | cave | riveted tub, flanged rail wheels, carbide lamp |
+| `field_marshal.py` | Field marshal | farm | huge rear fender arcs, exhaust stack, hay bale |
+| `log_racer.py` | Log racer | woodland | hollowed log, antler hoop, cross-cut wheels |
+| `bone_chariot.py` | Bone chariot | hell, alt | ribcage bodywork, skull nose cone |
+| `pit_rat.py` | Pit rat | unlock | mismatched panels, bare engine, jerry can |
+
+`kart-style-concepts.md` is where each of these was designed and why.
+
+### kartworks.py
+
+Everything a second style would otherwise copy from the first. **The dimensions live here
+and nowhere else** — wheel radii, track, axles, hoop and lamp reference points, all
+mirrored from `KartDimensions.Default` and asserted against `KartBlueprint.cs` and
+`KartController.cs` on every build of every style. That is what makes the pack adjustable:
+when the driving mechanics move, one edit in `kartworks.py` follows into all nine, and the
+build fails loudly until it is made.
+
+It also owns the parts whose shape the physics fixes rather than taste: `fender_arch`
+(which takes daylight over the tyre, never a radius, so no style can cut inside the
+`2R + T` clearance), `wheel_carcass`, `lamps`, `coilover`, and `tread_block`.
+
+**Use `tread_block` for anything on a tyre.** `KartSuspension` holds the hub exactly
+`radius` above the contact point, so a lug modelled proud of the nominal radius does not
+ride high — it drives buried in the road, at every corner, silently. The obvious
+construction gets this wrong: `tb.slab` measures its `thickness` perpendicular to its run,
+and a chevron's run is mostly *along the axle*, so the thickness leaks straight out past
+the radius. The first cut of the piste basher's tread peaked at 1.12 × radius that way.
+`tread_block` places all eight corners at their own exact radii, so the outer face is *on*
+the radius whatever the block's span, width or lean. `kw.emit(..., tread_radius=R)` then
+measures the built mesh and fails the build if anything exceeds it — pass it for every
+wheel.
+
+### The worked example
+
+`models\kart_buggy.py` is still the reference, and it exports four files:
 
 | File | Origin | Notes |
 |---|---|---|
@@ -152,7 +280,7 @@ example, and it exports three files:
 Three rules that are easy to get wrong:
 
 **Dimensions come from `KartDimensions.Default`, not from taste.** The wheel arches are cut
-for the wheels the physics actually places. The model script mirrors those numbers and
+for the wheels the physics actually places. `kartworks.py` mirrors those numbers and
 asserts them against `Assets\Kart\Scripts\KartBlueprint.cs` at build time, so a change on
 the C# side fails the build instead of producing a tyre through a fender. The assertion
 covers the steering constants too, since the steering wheel parents onto a C# pivot.
@@ -174,7 +302,31 @@ road. The carcass is drawn under the radius and the tread blocks come back out t
 Kart meshes carry six material slots named for `KartSetup`'s skins — `KartFrame`,
 `KartBody`, `KartSeat`, `KartRim`, `KartRubber`, `KartLens` — so one mesh keeps the palette
 split instead of arriving in Unity as a single flat colour. The slot order is the contract
-the skin constants index against: append to it, never reorder it.
+the skin constants index against: append to it, never reorder it. Build a style's palette
+through `kartworks.palette()`, which fixes the names; `kartworks.finish()` then drops the
+slots a given mesh turns out not to use, so declaring one costs nothing.
+
+**A style reinterprets the slots, it does not just recolour them.** Log racer is the
+clearest case — its `KartRubber` is bark, not tyre, because the wheels are cross-cut rounds
+of the same timber as the body. Cinder hauler and bone chariot spend `KartLens` on glowing
+rock and embers rather than on lamp glass, following the same "slot 4 is the part that
+glows" convention the cabins use. **A style that does that must leave `headlights` off** —
+`KartLights` switches the lamps on by swapping the material on *every* `KartLens` face, so
+a cinder hauler with headlights would flare its whole body on the L key.
+
+### Palettes are generated, not copied
+
+Each style writes its palette to `Assets\GeneratedModels\Manifests\kart_<Key>.json`, and
+`KartStyleManifest.cs` reads it. This is the farm pack's answer applied to karts, for the
+reason this README already gives about `BarrierAssetSetup.cs`: nine styles is fifty-odd
+colour, metallic and roughness numbers, and a hand-copied palette drifts silently — the
+kart just comes out the wrong colour, with nothing to say whether Blender or Unity is
+wrong. Roughness is inverted to smoothness on the way out, so the JSON is already in
+Unity's units.
+
+Mesh names and lamp flags stay hand-written in `KartStyle.All`, because Unity's `MenuItem`
+is an attribute and every style needs a hand-written menu entry regardless — and a wrong
+mesh name fails loudly the moment you click it, where a wrong colour does not fail at all.
 
 **Lamp glass gets its own slot.** `KartLights` switches the headlights on by swapping the
 material on the `KartLens` submesh for an emissive one, so the glass has to be modelled as
@@ -192,6 +344,14 @@ assets and is the fallback when a model is missing.
 ```
 Tools > Toebeans > Set Up Drivable Kart        (Ctrl+Shift+K — builds KartStyle.Default)
 Tools > Toebeans > Kart Style > Buggy
+Tools > Toebeans > Kart Style > Cinder hauler (lava)
+Tools > Toebeans > Kart Style > Overgrowth (jungle)
+Tools > Toebeans > Kart Style > Piste basher (snow)
+Tools > Toebeans > Kart Style > Mine cart (cave)
+Tools > Toebeans > Kart Style > Field marshal (farm)
+Tools > Toebeans > Kart Style > Log racer (woodland)
+Tools > Toebeans > Kart Style > Bone chariot (hell)
+Tools > Toebeans > Kart Style > Pit rat (unlock)
 Tools > Toebeans > Kart Style > Primitives     (no imported assets)
 ```
 
@@ -201,8 +361,9 @@ submeshes with the project's own kart materials, matched by the **material name*
 into the FBX rather than by slot order. Unity has to have imported the FBX first, so
 after a Blender build, focus the Editor once before running the tool.
 
-Adding a style is: write `models\<style>.py`, build it, add an entry to `KartStyle.All`.
-No other C# changes.
+Adding a style is: write `models\<style>.py` on `kartworks`, build it (which writes its
+manifest), add an entry to `KartStyle.All` and a `[MenuItem]` beside the others. The
+palette needs no C# change at all.
 
 A style whose model has lamps sets `headlights = true` on its entry, and `KartSetup` hangs
 the Lights and the switch on it — **L** toggles them while driving. Leave it off for a
@@ -225,6 +386,34 @@ prop goes wrong.
 `verify_axes.py` re-asserts all of that. It runs before every build, so if a Blender upgrade
 changes an exporter default you find out from a failing build rather than from a prop lying
 on its side in the map.
+
+### The half turn
+
+Getting up and scale right still leaves which way round, and these settings land a prop
+**yawed 180°**:
+
+```
+Blender (x, y, z)  ->  Unity (-x, z, -y)
+```
+
+The FBX stores Blender +Y at file -Z, and Unity negates X again on import because FBX is
+right-handed and Unity is not. `verify_axes.py` section 3 asserts each of those signs.
+
+It went unmeasured for a long time because sections 1 and 2 compare **dimensions**, and a
+dimension has no sign — a half turn is invisible to them. Every prop the project had was
+either symmetric or already compensating, so nothing surfaced it until a tractor arrived in
+Unity pointing backwards.
+
+Two places correct for it, and a new model script has to do one or the other or it faces
+the wrong way:
+
+- `farmyard.face_unity()` turns a whole prop once at the end, for scripts authored in
+  Blender coordinates. This is the cheap route; `finish`/`finish_parts` call it for you.
+- `kart_buggy.u()` converts each point on the way in, for a script authored in Unity
+  coordinates so its numbers can be read against the C#.
+
+Do **not** fix it inside `export_for_unity`. That would silently rotate every asset the
+project has ever produced, including the two that already compensate.
 
 ## Validation is fatal, not advisory
 
